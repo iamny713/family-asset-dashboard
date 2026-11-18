@@ -263,6 +263,8 @@ function render() {
   const balances = latest(ledger.filter(row => row.month <= month && ['valuation','debt'].includes(row.kind)));
   const snapshot = month === currentMonth ? undefined : snapshots.find(row => row.month === month);
   const assets = snapshot?.assets ?? sum(balances.filter(row => row.kind === 'valuation'));
+  const includeProperty = includePropertySwitch.checked;
+  const displayedAssets = includeProperty ? assets : sum(balances.filter(isFinancialAsset));
   const debtRows = balances.filter(row => row.kind === 'debt' && row.amount > 0);
   const debts = snapshot?.debts ?? sum(debtRows);
   renderDebtBalances($('monthly-debt-balances'), debtRows, snapshot, true);
@@ -270,7 +272,7 @@ function render() {
   renderDebtBalances($('portfolio-debts'), debtRows, snapshot);
   $('totals').replaceChildren();
   const metrics = [
-    ['금융자산', sum(balances.filter(isFinancialAsset)), 'asset'],
+    ['총자산', displayedAssets, 'asset'],
     ['순자산', assets - debts, 'net'],
     ['총부채', debts, 'debt'],
     ['조회 월 수입', income, 'income'],
@@ -283,12 +285,10 @@ function render() {
     append(tile, 'small', label).className = 'metric-label';
     append(tile, 'strong', won(value));
   }
-  append($('totals'), 'small', snapshot
-    ? '금융자산은 부동산 제외 · 순자산과 총부채는 월말 스냅샷 기준'
-    : '금융자산은 부동산 제외 · 순자산은 부동산을 포함한 전체 자산 기준').className = 'metric-note';
+  const assetScope = includeProperty ? '총자산에 부동산 포함' : '총자산에 부동산 제외 · 순자산은 전체 자산 기준';
+  append($('totals'), 'small', assetScope + (snapshot ? ' · 월말 스냅샷 적용' : '')).className = 'metric-note';
   grouped('people',flow,'person');
   grouped('categories',flow,'category');
-  const includeProperty = includePropertySwitch.checked;
   renderAssetTotalTrend(month, includeProperty);
   portfolio(balances, includeProperty);
   flowChart('flow-chart',income,expense);
