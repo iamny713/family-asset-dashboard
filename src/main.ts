@@ -160,20 +160,22 @@ function renderTransactions(rows: Row[]) {
     }
   }
 }
-function renderDebtBalances(container: HTMLElement, rows: Row[], snapshot?: Snapshot) {
+function renderDebtBalances(container: HTMLElement, rows: Row[], snapshot?: Snapshot, chart = false) {
   container.replaceChildren();
   const total = sum(rows);
+  const max = chart ? Math.max(0, ...rows.map(row => row.amount)) : 0;
   if (rows.length) {
     for (const row of rows) {
       const label = row.month === monthInput.value ? row.title : row.title + ' (' + row.month + ' 기록)';
-      line(container, label, won(row.amount), true);
+      line(container, label, won(row.amount), !chart);
+      if (chart) bar(container, row.amount, max, 'debt-fill');
     }
-    line(container, '기록된 부채 합계', won(total), true);
+    line(container, '기록된 부채 합계', won(total), !chart);
   } else {
-    line(container, '조회 월까지 개별 부채 잔액 기록이 없습니다.', '—', true);
+    line(container, '조회 월까지 개별 부채 잔액 기록이 없습니다.', '—', !chart);
   }
   if (snapshot && (!rows.length || snapshot.debts !== total)) {
-    line(container, '월말 스냅샷 총부채', won(snapshot.debts), true);
+    line(container, '월말 스냅샷 총부채', won(snapshot.debts), !chart);
   }
 }
 function renderDelta(deltaChart: HTMLElement, deltas: {label: string; value: number}[]) {
@@ -234,7 +236,7 @@ function renderDebtHistory(month: string) {
   const max = Math.max(0, ...points.map(point => point.amount));
   for (const point of points) {
     line(chart, point.month + (point.snapshot ? ' · 월말 스냅샷' : ''), won(point.amount));
-    bar(chart, point.amount, max, 'expense');
+    bar(chart, point.amount, max, 'debt-fill');
   }
 }
 function render() {
@@ -248,7 +250,7 @@ function render() {
   const assets = snapshot?.assets ?? sum(balances.filter(row => row.kind === 'valuation'));
   const debtRows = balances.filter(row => row.kind === 'debt' && row.amount > 0);
   const debts = snapshot?.debts ?? sum(debtRows);
-  renderDebtBalances($('monthly-debt-balances'), debtRows, snapshot);
+  renderDebtBalances($('monthly-debt-balances'), debtRows, snapshot, true);
   renderDebtBalances($('debt-balances'), debtRows, snapshot);
   renderDebtBalances($('portfolio-debts'), debtRows, snapshot);
   $('totals').replaceChildren();

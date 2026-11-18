@@ -112,3 +112,8 @@ select{font:inherit;color:#122744;background:#fff;border:1px solid #c5d6ee;paddi
 @media(max-width:660px){.transaction-groups{grid-template-columns:1fr}
 }
 #refresh-status { margin-bottom: 16px; }
+
+.debt-values dd,.debt-values .entry strong{color:#a51e31;font-weight:700}
+.debt-values .bar-track{background:#f9e9ed;height:10px;margin:0 0 12px}
+.debt-fill,.debt-values .delta-track .income{background:#c92f48}
+.debt-values .delta-track .expense{background:#9a2036}
