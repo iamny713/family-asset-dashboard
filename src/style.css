@@ -117,3 +117,23 @@ select{font:inherit;color:#122744;background:#fff;border:1px solid #c5d6ee;paddi
 .debt-values .bar-track{background:#f9e9ed;height:10px;margin:0 0 12px}
 .debt-fill,.debt-values .delta-track .income{background:#c92f48}
 .debt-values .delta-track .expense{background:#9a2036}
+
+
+.metrics{grid-template-columns:repeat(6,minmax(0,1fr))}
+.metrics .metric{grid-column:span 2;--metric-ink:#234f91;--metric-badge:#e7eefb;background:#f7faff;border-color:#dce6f5}
+.metrics .metric[data-kind="net"]{--metric-ink:#123c72;--metric-badge:#d9e8ff;background:#eaf2ff;border-color:#c8daf5}
+.metrics .metric[data-kind="debt"]{--metric-ink:#a51e31;--metric-badge:#fbe0e6;background:#fff4f6;border-color:#f1cbd3}
+.metrics .metric[data-kind="income"]{--metric-ink:#106148;--metric-badge:#d9f2e8;background:#f2faf6;border-color:#cde7dc}
+.metrics .metric[data-kind="expense"]{--metric-ink:#934127;--metric-badge:#fce6db;background:#fff8f3;border-color:#f2dccf}
+.metrics .metric[data-kind="income"],.metrics .metric[data-kind="expense"]{grid-column:span 3}
+.metrics .metric strong{color:var(--metric-ink);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.metric-label,.category-badge{display:inline-block;border-radius:999px;padding:3px 9px;font-size:.75rem;font-weight:700}
+.metric .metric-label{color:var(--metric-ink);background:var(--metric-badge)}
+.metric-note{grid-column:1/-1}
+.transaction-details{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;margin-top:4px}
+.category-badge{color:var(--amount-ink);background:var(--amount-bg)}
+@media(max-width:660px){
+  .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .metrics .metric[data-kind]{grid-column:span 1}
+  .metrics .metric[data-kind="net"]{grid-column:1/-1}
+}

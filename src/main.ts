@@ -158,7 +158,12 @@ function renderTransactions(rows: Row[]) {
       const label = append(item,'div','');
       label.className = 'transaction-label';
       append(label,'strong',row.title || row.category);
-      append(label,'small',[row.category !== row.title ? row.category : '',row.person,row.account, row.day].filter(Boolean).join(' · ') || '공동·미지정');
+      const details = append(label, 'div', '');
+      details.className = 'transaction-details';
+      if (row.category && row.category !== row.title) {
+        append(details, 'span', row.category).className = 'category-badge';
+      }
+      append(details, 'small', [row.person, row.account, row.day].filter(Boolean).join(' · ') || '공동·미지정');
       append(item,'strong',signed(row.amount)).className = 'transaction-amount';
     }
   }
@@ -257,12 +262,21 @@ function render() {
   renderDebtBalances($('debt-balances'), debtRows, snapshot);
   renderDebtBalances($('portfolio-debts'), debtRows, snapshot);
   $('totals').replaceChildren();
-  for (const [label,value] of [['순자산',assets-debts],['평가 자산',assets],['조회 월 수입',income],['조회 월 지출',expense]] as const) {
-    const tile = document.createElement('div');
+  const metrics = [
+    ['순자산', assets - debts, 'net'],
+    ['평가 자산', assets, 'asset'],
+    ['총부채', debts, 'debt'],
+    ['조회 월 수입', income, 'income'],
+    ['조회 월 지출', expense, 'expense'],
+  ] as const;
+  for (const [label, value, kind] of metrics) {
+    const tile = append($('totals'), 'div', '');
     tile.className = 'metric';
-    append(tile,'small',label); append(tile,'strong',won(value)); $('totals').append(tile);
+    tile.dataset.kind = kind;
+    append(tile, 'small', label).className = 'metric-label';
+    append(tile, 'strong', won(value));
   }
-  if (snapshot) append($('totals'), 'small', '월말 스냅샷 기준 · 포트폴리오는 기록된 개별 자산 기준');
+  if (snapshot) append($('totals'), 'small', '월말 스냅샷 기준 · 포트폴리오는 기록된 개별 자산 기준').className = 'metric-note';
   grouped('people',flow,'person');
   grouped('categories',flow,'category');
   portfolio(balances.filter(row => row.kind === 'valuation'));
