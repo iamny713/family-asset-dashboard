@@ -2,7 +2,7 @@ import { isFlowCategory } from './flow-categories.ts';
 
 export type Position = {
   id: string; kind: 'asset' | 'debt'; name: string; group: string; amount: number;
-  rate: number; payment: number; due: string; active: boolean;
+  rate: number; payment: number; due: string; active: boolean; purchasePrice?: number;
 };
 export type Flow = { id: string; day: string; kind: 'income' | 'expense'; name: string; amount: number; category?: string; person?: string; account?: string };
 export type Snapshot = { month: string; assets: number; debts: number };
@@ -46,7 +46,7 @@ export function applyCommand(ledger: Ledger, command: Command, actor: string, at
       const p = command.value;
       if (!p.id || !p.name.trim() || !p.group.trim() || !['asset', 'debt'].includes(p.kind) ||
           !isAmount(p.amount) || !isAmount(p.payment) || !Number.isFinite(p.rate) ||
-          p.rate < 0 || p.rate > 100 || (p.due !== '' && !isDay(p.due))) throw new Error('자산·부채 입력을 확인하세요.');
+          p.rate < 0 || p.rate > 100 || (p.purchasePrice !== undefined && !isAmount(p.purchasePrice)) || (p.due !== '' && !isDay(p.due))) throw new Error('자산·부채 입력을 확인하세요.');
       previous = ledger.positions.find(row => row.id === p.id);
       target = p.id;
       next.positions = [...ledger.positions.filter(row => row.id !== p.id), p];

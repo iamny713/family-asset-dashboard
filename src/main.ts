@@ -1,0 +1,335 @@
+import { monthNow, type Snapshot } from './model';
+import { readSharedLedger } from './sheets';
+import { dashboardRows, type Row } from './dashboard-data';
+import './style.css';
+
+const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
+const currentMonth = monthNow();
+const monthInput = $<HTMLInputElement>('month');
+let ledger: Row[] = [];
+let snapshots: Snapshot[] = [];
+let selectedAsset = '';
+monthInput.value = currentMonth;
+const won = (value: number) => Number(value).toLocaleString('ko-KR') + '원';
+const labels = {income:'수입',expense:'지출',valuation:'평가',purchase:'매입',debt:'부채 잔액'};
+const sum = (rows: Row[]) => rows.reduce((total,row) => total + row.amount,0);
+function latest(rows: Row[]) {
+  const records = new Map<string, Row>();
+  for (const row of rows) {
+    const id = row.kind + ':' + row.id;
+    const existing = records.get(id);
+    if (!existing || existing.month <= row.month) records.set(id,row);
+  }
+  return [...records.values()];
+}
+function describe(row: Row) {
+  return [row.month,labels[row.kind],row.category,row.person,row.account,row.title !== row.account ? row.title : ''].filter(Boolean).join(' · ');
+}
+function append<K extends keyof HTMLElementTagNameMap>(container: HTMLElement, tag: K, text: string) {
+  const node = document.createElement(tag);
+  node.textContent = text;
+  container.append(node);
+  return node;
+}
+function line(container: HTMLElement, label: string, value: string, definition = false) {
+  const item = document.createElement('div');
+  if (!definition) item.className = 'entry';
+  append(item,definition ? 'dt' : 'span',label);
+  append(item,definition ? 'dd' : 'strong',value);
+  container.append(item);
+}
+function bar(container: HTMLElement, value: number, max: number, color: string) {
+  const track = append(container,'div','');
+  track.className = 'bar-track';
+  track.setAttribute('aria-hidden','true');
+  const fill = append(track,'span','');
+  fill.className = 'bar-fill ' + color;
+  fill.style.width = (max ? value / max * 100 : 0) + '%';
+}
+function grouped(id: string, rows: Row[], field: 'person' | 'category') {
+  const node = $(id);
+  node.replaceChildren();
+  const groups = new Map<string, { income: number; expense: number }>();
+  for (const row of rows) {
+    const name = row[field] || '공동·미지정';
+    const values = groups.get(name) || {income:0,expense:0};
+    if (row.kind === 'income' || row.kind === 'expense') values[row.kind] += row.amount;
+    groups.set(name,values);
+  }
+  const max = Math.max(0,...[...groups.values()].flatMap(value => [value.income,value.expense]));
+  for (const [name,amounts] of groups) {
+    const item = append(node,'div','');
+    item.className = 'visual-row';
+    append(item,'dt',name);
+    const detail = append(item,'dd','');
+    for (const kind of ['income','expense'] as const) {
+      if (!amounts[kind]) continue;
+      append(detail,'small',labels[kind] + ' ' + won(amounts[kind]));
+      bar(detail,amounts[kind],max,kind);
+    }
+  }
+  if (!groups.size) line(node,'기록 없음','—',true);
+}
+function portfolio(rows: Row[]) {
+  const chart = $('allocation');
+  const detail = $('assets');
+  chart.replaceChildren();
+  detail.replaceChildren();
+  const groups = [['부동산','#173b79'],['주식','#356cd2'],['현금','#78a8f4'], ...(rows.some(row => row.category === '기타 자산') ? [['기타 자산','#8193ad']] : [])].map(([category,color]) => {
+    const items = rows.filter(row => row.category === category);
+    return {category,color,items,amount:sum(items)};
+  });
+  const total = groups.reduce((value,group) => value + group.amount,0);
+  if (!total) { append(chart,'p','평가 기록 없음'); return; }
+  const stack = append(chart,'div','');
+  stack.className = 'allocation';
+  stack.setAttribute('aria-hidden','true');
+  const picks = append(chart,'div','');
+  picks.className = 'portfolio-picks';
+  for (const {category,color,amount} of groups) {
+    const ratio = amount / total * 100;
+    const segment = append(stack,'span','');
+    segment.style.width = ratio + '%';
+    segment.style.backgroundColor = color;
+    const button = append(picks,'button','');
+    button.type = 'button';
+    button.dataset.category = category;
+    button.setAttribute('aria-pressed',String(selectedAsset === category));
+    const name = append(button,'span','');
+    const dot = append(name,'span','');
+    dot.className = 'dot';
+    dot.style.backgroundColor = color;
+    append(name,'span',category);
+    append(button,'strong',ratio.toFixed(1) + '% · ' + won(amount));
+  }
+  function showDetails() {
+    detail.replaceChildren();
+    for (const button of picks.querySelectorAll('button')) button.setAttribute('aria-pressed',String(button.dataset.category === selectedAsset));
+    const items = selectedAsset ? rows.filter(row => row.category === selectedAsset) : rows;
+    for (const row of items) line(detail,row.title,won(row.amount));
+    if (!items.length) append(detail,'p','평가 기록 없음');
+  }
+  picks.addEventListener('click',event => {
+    const button = (event.target as HTMLElement).closest('button');
+    if (!button?.dataset.category) return;
+    selectedAsset = selectedAsset === button.dataset.category ? '' : button.dataset.category;
+    showDetails();
+  });
+  showDetails();
+}
+function flowChart(id: string, income: number, expense: number) {
+  const node = $(id);
+  node.replaceChildren();
+  const max = Math.max(income,expense);
+  for (const [kind,value] of [['income',income],['expense',expense]] as const) {
+    line(node,labels[kind],won(value));
+    bar(node,value,max,kind);
+  }
+  const balance = append(node,'p','남은 금액 ' + won(income-expense));
+  balance.className = 'flow-total';
+}
+function renderTransactions(rows: Row[]) {
+  const node = $('entries');
+  node.replaceChildren();
+  node.className = 'transaction-groups';
+  for (const kind of ['income','expense'] as const) {
+    const items = rows.filter(row => row.kind === kind).sort((a,b) => b.amount-a.amount);
+    const group = append(node,'section','');
+    group.className = 'transaction-group';
+    group.dataset.kind = kind;
+    const heading = append(group,'div','');
+    heading.className = 'transaction-heading';
+    append(heading,'h3',labels[kind] + ' · ' + items.length + '건');
+    const prefix = kind === 'income' ? '+' : '−';
+    const signed = (amount: number) => (amount ? prefix : '') + won(amount);
+    append(heading,'strong',signed(sum(items))).className = 'transaction-total';
+    if (!items.length) {
+      append(group,'p',labels[kind] + ' 기록이 없습니다.').className = 'transaction-empty';
+      continue;
+    }
+    const list = append(group,'ul','');
+    list.className = 'transaction-list';
+    for (const row of items) {
+      const item = append(list,'li','');
+      item.className = 'transaction';
+      const label = append(item,'div','');
+      label.className = 'transaction-label';
+      append(label,'strong',row.title || row.category);
+      append(label,'small',[row.category !== row.title ? row.category : '',row.person,row.account, row.day].filter(Boolean).join(' · ') || '공동·미지정');
+      append(item,'strong',signed(row.amount)).className = 'transaction-amount';
+    }
+  }
+}
+function render() {
+  const month = monthInput.value;
+  const monthRows = ledger.filter(row => row.month === month);
+  const flow = monthRows.filter(row => ['income','expense'].includes(row.kind));
+  const income = sum(flow.filter(row => row.kind === 'income'));
+  const expense = sum(flow.filter(row => row.kind === 'expense'));
+  const balances = latest(ledger.filter(row => row.month <= month && ['valuation','debt'].includes(row.kind)));
+  const snapshot = month === currentMonth ? undefined : snapshots.find(row => row.month === month);
+  const assets = snapshot?.assets ?? sum(balances.filter(row => row.kind === 'valuation'));
+  const debts = snapshot?.debts ?? sum(balances.filter(row => row.kind === 'debt'));
+  $('totals').replaceChildren();
+  for (const [label,value] of [['순자산',assets-debts],['평가 자산',assets],['이번 달 수입',income],['이번 달 지출',expense]] as const) {
+    const tile = document.createElement('div');
+    tile.className = 'metric';
+    append(tile,'small',label); append(tile,'strong',won(value)); $('totals').append(tile);
+  }
+  if (snapshot) append($('totals'), 'small', '월말 스냅샷 기준 · 포트폴리오는 기록된 개별 자산 기준');
+  grouped('people',flow,'person');
+  grouped('categories',flow,'category');
+  portfolio(balances.filter(row => row.kind === 'valuation'));
+  flowChart('flow-chart',income,expense);
+  flowChart('monthly-flow',income,expense);
+  renderTransactions(flow);
+  $('changes').replaceChildren();
+  const priorMonth = new Date(Date.UTC(Number(month.slice(0,4)),Number(month.slice(5,7))-2,1)).toISOString().slice(0,7);
+  const compare = (row: Row) => latest(ledger.filter(item => item.kind === row.kind && item.id === row.id && item.month <= priorMonth))[0];
+  const changes = latest(monthRows.filter(row => row.kind === 'valuation' || row.kind === 'debt'))
+    .filter(row => !row.currentBalance || (compare(row) && compare(row).amount !== row.amount) ||
+      monthRows.some(item => item.kind === row.kind && item.id === row.id && !item.currentBalance));
+  const deltas = changes.filter(row => row.kind !== 'purchase').flatMap(row => {
+    const prior = compare(row);
+    return prior?.month === priorMonth ? [{label:row.category + ' · ' + row.title, value:row.amount-prior.amount}] : [];
+  });
+  const deltaChart = $('monthly-delta');
+  deltaChart.replaceChildren();
+  const max = Math.max(0,...deltas.map(row => Math.abs(row.value)));
+  if (!deltas.length) append(deltaChart,'p','전월과 비교할 기록이 없습니다.');
+  else append(deltaChart,'small','감소 ← 0 → 증가 · 부채는 잔액 기준');
+  for (const {label,value} of deltas) {
+    line(deltaChart,label,(value > 0 ? '+' : '') + won(value));
+    const track = append(deltaChart,'div','');
+    track.className = 'delta-track';
+    track.setAttribute('aria-hidden','true');
+    const fill = append(track,'span','');
+    fill.className = 'bar-fill ' + (value < 0 ? 'expense' : 'income');
+    const width = max ? Math.abs(value) / max * 50 : 0;
+    fill.style.width = width + '%';
+    fill.style.left = (value < 0 ? 50-width : 50) + '%';
+  }
+  for (const row of changes) {
+    line($('changes'),describe(row),won(row.amount));
+    const previous = compare(row);
+    if (previous) {
+      const delta = row.amount - previous.amount;
+      append($('changes'),'p','이전 기록(' + previous.month + ') 대비 ' + (delta > 0 ? '+' : '') + won(delta)).className = 'delta';
+    }
+  }
+  if (!changes.length) append($('changes'),'p','이 달에 자산·부채 변경 기록이 없습니다.');
+  renderTrend();
+}
+const assetSelect = $<HTMLSelectElement>('asset-select');
+function refreshAssetOptions() {
+  const selected = assetSelect.value;
+  const holdings = latest(ledger.filter(row => row.kind === 'valuation'));
+  assetSelect.replaceChildren();
+  for (const row of holdings) append(assetSelect,'option',row.title).value = row.id;
+  if (holdings.some(row => row.id === selected)) assetSelect.value = selected;
+  assetSelect.disabled = holdings.length === 0;
+}
+function renderTrend() {
+  const node = $('asset-trend');
+  node.replaceChildren();
+  const byMonth = new Map<string, Row>();
+  for (const row of ledger) {
+    if (row.kind === 'valuation' && row.id === assetSelect.value && row.month <= monthInput.value) {
+      byMonth.set(row.month, row);
+    }
+  }
+  const rows = [...byMonth.values()].sort((a, b) => a.month.localeCompare(b.month)).slice(-12);
+  const context = $('asset-context');
+  context.replaceChildren();
+  const first = rows[0];
+  const last = rows.at(-1);
+  const category = last?.category;
+  $('trend-title').textContent = ({부동산:'부동산 평가액 추이',주식:'증권계좌 평가액 추이',현금:'현금 잔액 추이'} as Record<string, string>)[category ?? ''] || '자산별 월간 평가액';
+  if (!last) { append(node,'p','선택한 월까지 평가 기록이 없습니다.'); return; }
+  const purchase = category === '부동산' && ledger.find(row => row.kind === 'purchase' && row.id === last.id);
+  const values = rows.map(row => row.amount);
+  if (purchase) values.push(purchase.amount);
+  const low = Math.min(...values);
+  const high = Math.max(...values);
+  const pad = Math.max(1,(high-low)*.12,high*.005);
+  const min = Math.max(0,low-pad);
+  const max = high+pad;
+  const y = (value: number) => 90 - (value-min)/(max-min)*80;
+  const monthIndex = (month: string) => Number(month.slice(0,4))*12+Number(month.slice(5,7));
+  const duration = monthIndex(last.month)-monthIndex(first.month);
+  const x = (row: Row) => duration ? 8 + (monthIndex(row.month)-monthIndex(first.month))/duration*184 : 100;
+  const graph = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  graph.setAttribute('viewBox','0 0 200 100');
+  graph.setAttribute('preserveAspectRatio','none');
+  graph.setAttribute('class','trend-svg');
+  graph.setAttribute('role','img');
+  graph.setAttribute('aria-label',rows.map(row => row.month + ' ' + won(row.amount)).join(', ') + (purchase ? ', 매입가 ' + won(purchase.amount) : ''));
+  const mark = (tag: string, attrs: Record<string, string | number>) => {
+    const item = document.createElementNS('http://www.w3.org/2000/svg',tag);
+    for (const [key,value] of Object.entries(attrs)) item.setAttribute(key,String(value));
+    graph.append(item);
+  };
+  for (const level of [10,50,90]) mark('line',{x1:8,x2:192,y1:level,y2:level,stroke:'currentColor',class:'trend-grid','vector-effect':'non-scaling-stroke'});
+  if (purchase) mark('line',{x1:8,x2:192,y1:y(purchase.amount),y2:y(purchase.amount),stroke:'#9b6d33','stroke-dasharray':'4 4','vector-effect':'non-scaling-stroke'});
+  mark('polyline',{points:rows.map(row => x(row)+','+y(row.amount)).join(' '),fill:'none',stroke:'currentColor',class:'trend-path','stroke-width':2,'vector-effect':'non-scaling-stroke'});
+  for (const row of rows) mark('line',{x1:x(row),x2:x(row),y1:y(row.amount)-.1,y2:y(row.amount)+.1,stroke:'currentColor',class:'trend-path','stroke-width':6,'stroke-linecap':'round','vector-effect':'non-scaling-stroke'});
+  node.append(graph);
+  const ticks = append(node,'div','');
+  ticks.className = 'trend-labels';
+  ticks.style.gridTemplateColumns = 'repeat(' + rows.length + ',minmax(0,1fr))';
+  for (const row of rows) {
+    const tick = append(ticks,'span',row.month);
+    append(tick,'br','');
+    append(tick,'small',won(row.amount));
+  }
+  line(context,category === '부동산' ? '최근 평가액' : category === '주식' ? '최근 계좌 평가액' : '최근 잔액',won(last.amount),true);
+  if (purchase) {
+    line(context,'매입가 · 점선',won(purchase.amount),true);
+    const difference = last.amount-purchase.amount;
+    line(context,'매입가 대비 차이',(difference>0?'+':'')+won(difference),true);
+  } else if (rows.length > 1) {
+    const previous = rows[rows.length - 2];
+    const difference = last.amount-previous.amount;
+    line(context,previous.month+' 기록 대비',(difference>0?'+':'')+won(difference),true);
+  }
+  if (category === '주식') append(node,'small','계좌 평가액 기준 · 입출금을 제외한 투자 수익률은 별도 계산이 필요합니다.');
+}
+assetSelect.addEventListener('change',renderTrend);
+const root = $('dashboard-content');
+const menu = root.querySelectorAll<HTMLButtonElement>('[data-view]');
+for (const button of menu) button.addEventListener('click',() => {
+  for (const item of menu) {
+    const active = item === button;
+    $(item.dataset.view!).hidden = !active;
+    if (active) item.setAttribute('aria-current','page');
+    else item.removeAttribute('aria-current');
+  }
+  root.querySelector('h1')!.textContent = button.textContent;
+});
+root.querySelector('h1')!.textContent = '대시보드';
+monthInput.addEventListener('change',() => {
+  if (!monthInput.value) monthInput.value = currentMonth;
+  render();
+});
+
+const refresh = $<HTMLButtonElement>('refresh');
+const status = $('refresh-status');
+async function reload() {
+  refresh.disabled = true;
+  status.hidden = false;
+  status.textContent = '공유 원장을 불러오는 중…';
+  try {
+    const shared = await readSharedLedger(new AbortController().signal);
+    ledger = dashboardRows(shared, currentMonth);
+    snapshots = shared.snapshots;
+    refreshAssetOptions();
+    render();
+    status.hidden = true;
+  } catch (error) {
+    status.textContent = error instanceof Error ? error.message : '공유 원장을 불러오지 못했습니다.';
+  } finally {
+    refresh.disabled = false;
+  }
+}
+refresh.addEventListener('click', () => { void reload(); });
+void reload();

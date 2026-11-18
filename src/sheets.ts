@@ -15,7 +15,7 @@ type Response = { status?: string; table?: { cols: { label: string }[]; rows: { 
 
 function query(tab: Tab, signal: AbortSignal) {
   const url = new URL(sheetUrl.replace(/\/edit$/, '/gviz/tq'));
-  url.search = new URLSearchParams({ sheet: tab, range: 'A:' + String.fromCharCode(64 + columns[tab].length + (tab === '현금흐름' ? flowMetadata.length : 0)), headers: '1',
+  url.search = new URLSearchParams({ sheet: tab, range: 'A:' + String.fromCharCode(64 + columns[tab].length + (tab === '현금흐름' ? flowMetadata.length : tab === '자산부채' ? 1 : 0)), headers: '1',
     tqx: 'out:json;responseHandler:receiveLedger' }).toString();
   return new Promise<Response>((resolve, reject) => {
     signal.throwIfAborted();
@@ -85,7 +85,14 @@ export function decodeRows(tab: Tab, response: Response) {
       if (!['asset', 'debt'].includes(p.kind) || !p.name || !p.group || !amount(p.amount) || !amount(p.payment) ||
           !Number.isFinite(p.rate) || p.rate < 0 || p.rate > 100 || (p.due && !day(p.due)) ||
           !['', 'true', 'false'].includes(string(active).toLowerCase())) throw invalid();
-      ledger.positions.push(p as Position);
+      const position = p as Position;
+      const purchaseIndex = columns.자산부채.length;
+      if (table.cols[purchaseIndex]?.label.trim() === 'purchasePrice' && string(c[purchaseIndex])) {
+        const price = number(c[purchaseIndex]);
+        if (!amount(price)) throw invalid();
+        position.purchasePrice = price;
+      }
+      ledger.positions.push(position);
     }
     if (tab === '현금흐름') {
       const f = { id, day: date(c[1]), kind: string(c[2]), name: string(c[3]), amount: number(c[4]) };
