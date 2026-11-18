@@ -318,7 +318,7 @@ function renderTrend() {
   const first = rows[0];
   const last = rows.at(-1);
   const category = last?.category;
-  $('trend-title').textContent = ({부동산:'부동산 평가액 추이',주식:'증권계좌 평가액 추이',현금:'현금 잔액 추이'} as Record<string, string>)[category ?? ''] || '자산별 월간 평가액';
+  $('trend-title').textContent = ({부동산:'부동산 평가액 추이',주식:'증권계좌 평가액 추이',현금:'현금'} as Record<string, string>)[category ?? ''] || '자산별 월간 평가액';
   if (!last) { append(node,'p','선택한 월까지 평가 기록이 없습니다.'); return; }
   const purchase = category === '부동산' && ledger.find(row => row.kind === 'purchase' && row.id === last.id);
   const values = rows.map(row => row.amount);
