@@ -263,8 +263,8 @@ function render() {
   renderDebtBalances($('portfolio-debts'), debtRows, snapshot);
   $('totals').replaceChildren();
   const metrics = [
+    ['평가자산', assets, 'asset'],
     ['순자산', assets - debts, 'net'],
-    ['평가 자산', assets, 'asset'],
     ['총부채', debts, 'debt'],
     ['조회 월 수입', income, 'income'],
     ['조회 월 지출', expense, 'expense'],
