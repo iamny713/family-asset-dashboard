@@ -9,6 +9,7 @@ export type Row = {
   person?: string;
   account?: string;
   day?: string;
+  recordedAt?: string;
   amount: number;
   currentBalance?: boolean;
 };
@@ -45,7 +46,7 @@ export function dashboardRows(ledger: Ledger, currentMonth: string): Row[] {
           typeof value.amount !== 'number' || !Number.isSafeInteger(value.amount) || value.amount < 0) continue;
       const month = monthFormat.format(new Date(entry.at));
       const row = positionRow(value as Position, month);
-      rows.push({ ...row, amount: value.active === false ? 0 : row.amount });
+      rows.push({ ...row, recordedAt: entry.at, amount: value.active === false ? 0 : row.amount });
     } catch {
       // Old history rows may contain plain-text descriptions.
     }

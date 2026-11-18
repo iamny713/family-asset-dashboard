@@ -176,6 +176,67 @@ function renderDebtBalances(container: HTMLElement, rows: Row[], snapshot?: Snap
     line(container, '월말 스냅샷 총부채', won(snapshot.debts), true);
   }
 }
+function renderDelta(deltaChart: HTMLElement, deltas: {label: string; value: number}[]) {
+  deltaChart.replaceChildren();
+  const max = Math.max(0,...deltas.map(row => Math.abs(row.value)));
+  if (!deltas.length) append(deltaChart,'p','전월과 비교할 기록이 없습니다.');
+  else append(deltaChart,'small','감소 ← 0 → 증가');
+  for (const {label,value} of deltas) {
+    line(deltaChart,label,(value > 0 ? '+' : '') + won(value));
+    const track = append(deltaChart,'div','');
+    track.className = 'delta-track';
+    track.setAttribute('aria-hidden','true');
+    const fill = append(track,'span','');
+    fill.className = 'bar-fill ' + (value < 0 ? 'expense' : 'income');
+    const width = max ? Math.abs(value) / max * 50 : 0;
+    fill.style.width = width + '%';
+    fill.style.left = (value < 0 ? 50-width : 50) + '%';
+  }
+}
+const debtDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul', dateStyle: 'short' });
+function renderDebtHistory(month: string) {
+  const history = $('debt-history');
+  const monthly = $('monthly-debt-history');
+  const chart = $('debt-trend');
+  history.replaceChildren();
+  monthly.replaceChildren();
+  chart.replaceChildren();
+
+  const records = ledger.filter(row => row.kind === 'debt' && row.month <= month);
+  const previous = new Map<string, Row>();
+  const events = records.flatMap(row => {
+    const before = previous.get(row.id);
+    previous.set(row.id, row);
+    if (row.currentBalance && before?.amount === row.amount) return [];
+    const date = row.recordedAt ? debtDate.format(new Date(row.recordedAt)) : row.month;
+    const label = date + ' · ' + row.title + (row.currentBalance ? ' · 원장 잔액' : '');
+    const value = before && before.amount !== row.amount
+      ? won(before.amount) + ' → ' + won(row.amount)
+      : won(row.amount);
+    return [{ month: row.month, label, value }];
+  });
+  for (const event of events.reverse()) {
+    line(history, event.label, event.value, true);
+    if (event.month === month) line(monthly, event.label, event.value, true);
+  }
+  if (!history.childElementCount) line(history, '조회 월까지 기록이 없습니다.', '—', true);
+  if (!monthly.childElementCount) line(monthly, '이달 부채 변경 기록이 없습니다.', '—', true);
+
+  const observedMonths = new Set(records.map(row => row.month));
+  const monthEnd = new Map(snapshots.filter(row => row.month < currentMonth).map(row => [row.month, row.debts]));
+  for (const key of monthEnd.keys()) if (key <= month) observedMonths.add(key);
+  const points = [...observedMonths].sort().slice(-12).map(key => ({
+    month: key,
+    amount: monthEnd.get(key) ?? sum(latest(records.filter(row => row.month <= key))),
+    snapshot: monthEnd.has(key),
+  }));
+  if (!points.length) append(chart, 'p', '조회 월까지 부채 잔액 기록이 없습니다.');
+  const max = Math.max(0, ...points.map(point => point.amount));
+  for (const point of points) {
+    line(chart, point.month + (point.snapshot ? ' · 월말 스냅샷' : ''), won(point.amount));
+    bar(chart, point.amount, max, 'expense');
+  }
+}
 function render() {
   const month = monthInput.value;
   const monthRows = ledger.filter(row => row.month === month);
@@ -189,6 +250,7 @@ function render() {
   const debts = snapshot?.debts ?? sum(debtRows);
   renderDebtBalances($('monthly-debt-balances'), debtRows, snapshot);
   renderDebtBalances($('debt-balances'), debtRows, snapshot);
+  renderDebtBalances($('portfolio-debts'), debtRows, snapshot);
   $('totals').replaceChildren();
   for (const [label,value] of [['순자산',assets-debts],['평가 자산',assets],['이번 달 수입',income],['이번 달 지출',expense]] as const) {
     const tile = document.createElement('div');
@@ -208,26 +270,17 @@ function render() {
   const changes = latest(monthRows.filter(row => row.kind === 'valuation' || row.kind === 'debt'))
     .filter(row => !row.currentBalance || (compare(row) && compare(row).amount !== row.amount) ||
       monthRows.some(item => item.kind === row.kind && item.id === row.id && !item.currentBalance));
-  const deltas = changes.filter(row => row.kind !== 'purchase').flatMap(row => {
+  const deltas = changes.filter(row => row.kind === 'valuation').flatMap(row => {
     const prior = compare(row);
     return prior?.month === priorMonth ? [{label:row.category + ' · ' + row.title, value:row.amount-prior.amount}] : [];
   });
-  const deltaChart = $('monthly-delta');
-  deltaChart.replaceChildren();
-  const max = Math.max(0,...deltas.map(row => Math.abs(row.value)));
-  if (!deltas.length) append(deltaChart,'p','전월과 비교할 기록이 없습니다.');
-  else append(deltaChart,'small','감소 ← 0 → 증가 · 부채는 잔액 기준');
-  for (const {label,value} of deltas) {
-    line(deltaChart,label,(value > 0 ? '+' : '') + won(value));
-    const track = append(deltaChart,'div','');
-    track.className = 'delta-track';
-    track.setAttribute('aria-hidden','true');
-    const fill = append(track,'span','');
-    fill.className = 'bar-fill ' + (value < 0 ? 'expense' : 'income');
-    const width = max ? Math.abs(value) / max * 50 : 0;
-    fill.style.width = width + '%';
-    fill.style.left = (value < 0 ? 50-width : 50) + '%';
-  }
+  renderDelta($('monthly-delta'), deltas);
+  const debtDeltas = balances.filter(row => row.kind === 'debt').flatMap(row => {
+    const previous = compare(row);
+    return previous ? [{label: row.title, value: row.amount - previous.amount}] : [];
+  });
+  renderDelta($('monthly-debt-delta'), debtDeltas);
+  renderDebtHistory(month);
   for (const row of changes) {
     line($('changes'),describe(row),won(row.amount));
     const previous = compare(row);
