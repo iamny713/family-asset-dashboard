@@ -240,11 +240,13 @@ function renderDebtHistory(month: string) {
     amount: monthEnd.get(key) ?? sum(latest(records.filter(row => row.month <= key))),
     snapshot: monthEnd.has(key),
   }));
-  if (!points.length) append(chart, 'p', '조회 월까지 부채 잔액 기록이 없습니다.');
-  const max = Math.max(0, ...points.map(point => point.amount));
-  for (const point of points) {
-    line(chart, point.month + (point.snapshot ? ' · 월말 스냅샷' : ''), won(point.amount));
-    bar(chart, point.amount, max, 'debt-fill');
+  if (points.length) {
+    plotTrend(chart, points);
+    if (points.some(point => point.snapshot)) {
+      append(chart, 'small', '월말 스냅샷이 있는 달은 스냅샷 총부채 기준');
+    }
+  } else {
+    append(chart, 'p', '조회 월까지 부채 잔액 기록이 없습니다.');
   }
 }
 function render() {
@@ -310,16 +312,7 @@ function render() {
     }
   }
   if (!changes.length) append($('changes'),'p','이 달에 자산·부채 변경 기록이 없습니다.');
-  renderTrend();
-}
-const assetSelect = $<HTMLSelectElement>('asset-select');
-function refreshAssetOptions() {
-  const selected = assetSelect.value;
-  const holdings = latest(ledger.filter(row => row.kind === 'valuation'));
-  assetSelect.replaceChildren();
-  for (const row of holdings) append(assetSelect,'option',row.title).value = row.id;
-  if (holdings.some(row => row.id === selected)) assetSelect.value = selected;
-  assetSelect.disabled = holdings.length === 0;
+  renderAssetTrends(month);
 }
 type TrendPoint = { month: string; amount: number };
 
@@ -392,37 +385,38 @@ function renderTotalAssetTrend(month: string) {
   append(node, 'small', '월말 스냅샷 또는 자산별 최근 평가액 합계 · 기록이 있는 달 기준');
 }
 
-function renderTrend() {
-  const node = $('asset-trend');
-  node.replaceChildren();
-  const byMonth = new Map<string, Row>();
-  for (const row of ledger) {
-    if (row.kind === 'valuation' && row.id === assetSelect.value && row.month <= monthInput.value) {
-      byMonth.set(row.month, row);
+function renderAssetTrends(month: string) {
+  const container = $('asset-trends');
+  container.replaceChildren();
+  const valuations = ledger.filter(row => row.kind === 'valuation' && row.month <= month);
+  const assets = latest(valuations).filter(row => row.category !== '현금');
+  if (!assets.length) append(container, 'p', '조회 월까지 표시할 자산 평가 기록이 없습니다.');
+  for (const asset of assets) {
+    const rows = [...new Map(valuations.filter(row => row.id === asset.id)
+      .map(row => [row.month, row])).values()].sort((a, b) => a.month.localeCompare(b.month)).slice(-12);
+    const panel = append(container, 'section', '');
+    panel.className = 'panel';
+    append(panel, 'small', asset.category).className = 'asset-trend-category';
+    append(panel, 'h2', asset.title);
+    const node = append(panel, 'div', '');
+    const context = append(panel, 'dl', '');
+    const last = rows[rows.length - 1];
+    const category = asset.category;
+    const purchase = category === '부동산' && ledger.find(row => row.kind === 'purchase' && row.id === asset.id);
+    plotTrend(node, rows, purchase ? purchase.amount : undefined);
+    line(context,'최근 평가액',won(last.amount),true);
+    if (purchase) {
+      line(context,'매입가 · 점선',won(purchase.amount),true);
+      const difference = last.amount-purchase.amount;
+      line(context,'매입가 대비 차이',(difference>0?'+':'')+won(difference),true);
+    } else if (rows.length > 1) {
+      const previous = rows[rows.length - 2];
+      const difference = last.amount-previous.amount;
+      line(context,previous.month+' 기록 대비',(difference>0?'+':'')+won(difference),true);
     }
+    if (category === '주식') append(node,'small','계좌 평가액 기준 · 입출금을 제외한 투자 수익률은 별도 계산이 필요합니다.');
   }
-  const rows = [...byMonth.values()].sort((a, b) => a.month.localeCompare(b.month)).slice(-12);
-  const context = $('asset-context');
-  context.replaceChildren();
-  const last = rows.at(-1);
-  const category = last?.category;
-  $('trend-title').textContent = ({부동산:'부동산 평가액 추이',주식:'증권계좌 평가액 추이',현금:'현금'} as Record<string, string>)[category ?? ''] || '자산별 월간 평가액';
-  if (!last) { append(node,'p','선택한 월까지 평가 기록이 없습니다.'); return; }
-  const purchase = category === '부동산' && ledger.find(row => row.kind === 'purchase' && row.id === last.id);
-  plotTrend(node, rows, purchase ? purchase.amount : undefined);
-  line(context,category === '부동산' ? '최근 평가액' : category === '주식' ? '최근 계좌 평가액' : '최근 잔액',won(last.amount),true);
-  if (purchase) {
-    line(context,'매입가 · 점선',won(purchase.amount),true);
-    const difference = last.amount-purchase.amount;
-    line(context,'매입가 대비 차이',(difference>0?'+':'')+won(difference),true);
-  } else if (rows.length > 1) {
-    const previous = rows[rows.length - 2];
-    const difference = last.amount-previous.amount;
-    line(context,previous.month+' 기록 대비',(difference>0?'+':'')+won(difference),true);
-  }
-  if (category === '주식') append(node,'small','계좌 평가액 기준 · 입출금을 제외한 투자 수익률은 별도 계산이 필요합니다.');
 }
-assetSelect.addEventListener('change',renderTrend);
 const root = $('dashboard-content');
 const menu = root.querySelectorAll<HTMLButtonElement>('[data-view]');
 for (const button of menu) button.addEventListener('click',() => {
@@ -450,7 +444,6 @@ async function reload() {
     const shared = await readSharedLedger(new AbortController().signal);
     ledger = dashboardRows(shared, currentMonth);
     snapshots = shared.snapshots;
-    refreshAssetOptions();
     render();
     status.hidden = true;
   } catch (error) {

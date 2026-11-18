@@ -135,3 +135,7 @@ select{font:inherit;color:#122744;background:#fff;border:1px solid #c5d6ee;paddi
   .metrics .metric[data-kind]{grid-column:span 1}
   .metrics .metric[data-kind="asset"],.metrics .metric[data-kind="net"],.metrics .metric[data-kind="debt"]{grid-column:1/-1}
 }
+
+.asset-trends{display:grid;gap:12px}
+.asset-trend-category{display:block;margin-bottom:4px}
+#debt-trend .trend-path{color:#a51e31}
