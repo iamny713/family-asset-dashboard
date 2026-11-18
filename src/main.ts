@@ -74,15 +74,20 @@ function grouped(id: string, rows: Row[], field: 'person' | 'category') {
   }
   if (!groups.size) line(node,'기록 없음','—',true);
 }
-function portfolio(rows: Row[]) {
+function portfolio(balances: Row[]) {
+  const includeProperty = $<HTMLInputElement>('portfolio-include-property').checked;
+  const rows = balances.filter(row => includeProperty ? row.kind === 'valuation' : isFinancialAsset(row));
+  $('portfolio-debt-section').hidden = !includeProperty;
   const chart = $('allocation');
   const detail = $('assets');
   chart.replaceChildren();
   detail.replaceChildren();
-  const groups = [['부동산','#173b79'],['주식','#356cd2'],['현금','#78a8f4'], ...(rows.some(row => row.category === '적금') ? [['적금','#087e75']] : []), ...(rows.some(row => row.category === '기타 자산') ? [['기타 자산','#8193ad']] : [])].map(([category,color]) => {
+  const categories = [['부동산','#173b79'], ['주식','#356cd2'], ['현금','#78a8f4'], ['적금','#087e75'], ['기타 자산','#8193ad']];
+  const groups = categories.flatMap(([category, color]) => {
     const items = rows.filter(row => row.category === category);
-    return {category,color,items,amount:sum(items)};
+    return items.length ? [{category, color, amount: sum(items)}] : [];
   });
+  if (!groups.some(group => group.category === selectedAsset)) selectedAsset = '';
   const total = groups.reduce((value,group) => value + group.amount,0);
   if (!total) { append(chart,'p','평가 기록 없음'); return; }
   const stack = append(chart,'div','');
@@ -285,7 +290,7 @@ function render() {
   grouped('people',flow,'person');
   grouped('categories',flow,'category');
   renderFinancialAssetTrend(month);
-  portfolio(balances.filter(row => row.kind === 'valuation'));
+  portfolio(balances);
   flowChart('flow-chart',income,expense);
   flowChart('monthly-flow',income,expense);
   renderTransactions(flow);
@@ -430,6 +435,7 @@ for (const button of menu) button.addEventListener('click',() => {
   root.querySelector('h1')!.textContent = button.textContent;
 });
 root.querySelector('h1')!.textContent = '대시보드';
+$('portfolio-scope').addEventListener('change', render);
 monthInput.addEventListener('change',() => {
   if (!monthInput.value) monthInput.value = currentMonth;
   render();

@@ -139,3 +139,8 @@ select{font:inherit;color:#122744;background:#fff;border:1px solid #c5d6ee;paddi
 .asset-trends{display:grid;gap:12px}
 .asset-trend-category{display:block;margin-bottom:4px}
 #debt-trend .trend-path{color:#a51e31}
+
+.portfolio-scope{display:flex;flex-wrap:wrap;gap:8px 14px;margin:0 0 12px;padding:6px 10px 9px;border:1px solid #dce6f5;border-radius:9px}
+.portfolio-scope legend{font-size:.8rem;color:#506584;padding:0 4px}
+.portfolio-scope label{display:flex;align-items:center;gap:4px;cursor:pointer}
+.portfolio-scope input{accent-color:#1949a2;margin:0}
