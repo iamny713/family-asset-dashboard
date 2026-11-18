@@ -175,3 +175,6 @@ select{font:inherit;color:#122744;background:#fff;border:1px solid #c5d6ee;paddi
 .monthly-note h3{margin:0 0 6px;color:#106148}
 .monthly-note[data-kind="expense"] h3{color:#934127}
 .monthly-note p{white-space:pre-wrap;overflow-wrap:anywhere}
+
+.cashflow-trend-month + .cashflow-trend-month{margin-top:18px}
+.cashflow-trend-month h3{color:var(--blue);margin:0 0 6px}

@@ -190,10 +190,8 @@ function renderDelta(deltaChart: HTMLElement, deltas: {label: string; value: num
 const debtDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul', dateStyle: 'short' });
 function renderDebtHistory(month: string) {
   const history = $('debt-history');
-  const monthly = $('monthly-debt-history');
   const chart = $('debt-trend');
   history.replaceChildren();
-  monthly.replaceChildren();
   chart.replaceChildren();
 
   const records = ledger.filter(row => row.kind === 'debt' && row.month <= month);
@@ -207,14 +205,12 @@ function renderDebtHistory(month: string) {
     const value = before && before.amount !== row.amount
       ? won(before.amount) + ' → ' + won(row.amount)
       : won(row.amount);
-    return [{ month: row.month, label, value }];
+    return [{ label, value }];
   });
   for (const event of events.reverse()) {
     line(history, event.label, event.value, true);
-    if (event.month === month) line(monthly, event.label, event.value, true);
   }
   if (!history.childElementCount) line(history, '조회 월까지 기록이 없습니다.', '—', true);
-  if (!monthly.childElementCount) line(monthly, '이달 부채 변경 기록이 없습니다.', '—', true);
 
   const observedMonths = new Set(records.map(row => row.month));
   const monthEnd = new Map(snapshots.filter(row => row.month < currentMonth).map(row => [row.month, row.debts]));
@@ -233,6 +229,37 @@ function renderDebtHistory(month: string) {
     append(chart, 'p', '조회 월까지 부채 잔액 기록이 없습니다.');
   }
 }
+function renderCashflowTrend(month: string) {
+  const chart = $('cashflow-trend');
+  chart.replaceChildren();
+  const totals = new Map<string, { income: number; expense: number }>();
+  for (const row of ledger) {
+    if (row.month > month || (row.kind !== 'income' && row.kind !== 'expense')) continue;
+    const values = totals.get(row.month) ?? { income: 0, expense: 0 };
+    values[row.kind] += row.amount;
+    totals.set(row.month, values);
+  }
+  const months = [...totals.keys()].sort().slice(-12);
+  if (!months.length) {
+    append(chart, 'p', '조회 월까지 수입·지출 기록이 없습니다.');
+    return;
+  }
+  const max = Math.max(...months.flatMap(key => {
+    const { income, expense } = totals.get(key)!;
+    return [income, expense];
+  }));
+  for (const key of months) {
+    const group = append(chart, 'div', '');
+    group.className = 'cashflow-trend-month';
+    append(group, 'h3', key);
+    const values = totals.get(key)!;
+    for (const kind of ['income', 'expense'] as const) {
+      line(group, labels[kind], won(values[kind]));
+      bar(group, values[kind], max, kind);
+    }
+  }
+}
+
 function renderMonthlyNotes(month: string) {
   for (const kind of ['income', 'expense']) {
     const target = month + ':' + kind;
@@ -255,8 +282,7 @@ function render() {
   const displayedAssets = includeProperty ? assets : sum(balances.filter(isFinancialAsset));
   const debtRows = balances.filter(row => row.kind === 'debt' && row.amount > 0);
   const debts = snapshot?.debts ?? sum(debtRows);
-  renderDebtBalances($('monthly-debt-balances'), debtRows, snapshot, true);
-  renderDebtBalances($('debt-balances'), debtRows, snapshot);
+  renderDebtBalances($('debt-balances'), debtRows, snapshot, true);
   $('totals').replaceChildren();
   const metrics = [
     ['총자산', displayedAssets, 'asset'],
@@ -280,14 +306,15 @@ function render() {
   portfolio(balances, includeProperty);
   flowChart('flow-chart',income,expense);
   flowChart('monthly-flow',income,expense);
+  renderCashflowTrend(month);
   renderTransactions(flow);
   $('changes').replaceChildren();
   const priorMonth = new Date(Date.UTC(Number(month.slice(0,4)),Number(month.slice(5,7))-2,1)).toISOString().slice(0,7);
   const compare = (row: Row) => latest(ledger.filter(item => item.kind === row.kind && item.id === row.id && item.month <= priorMonth))[0];
-  const changes = latest(monthRows.filter(row => row.kind === 'valuation' || row.kind === 'debt'))
+  const changes = latest(monthRows.filter(row => row.kind === 'valuation'))
     .filter(row => !row.currentBalance || (compare(row) && compare(row).amount !== row.amount) ||
       monthRows.some(item => item.kind === row.kind && item.id === row.id && !item.currentBalance));
-  const deltas = changes.filter(row => row.kind === 'valuation').flatMap(row => {
+  const deltas = changes.flatMap(row => {
     const prior = compare(row);
     return prior?.month === priorMonth ? [{label:row.category + ' · ' + row.title, value:row.amount-prior.amount}] : [];
   });
@@ -306,7 +333,7 @@ function render() {
       append($('changes'),'p','이전 기록(' + previous.month + ') 대비 ' + (delta > 0 ? '+' : '') + won(delta)).className = 'delta';
     }
   }
-  if (!changes.length) append($('changes'),'p','이 달에 자산·부채 변경 기록이 없습니다.');
+  if (!changes.length) append($('changes'),'p','이 달에 자산 변경 기록이 없습니다.');
   renderAssetTrends(month);
 }
 type TrendPoint = { month: string; amount: number };
