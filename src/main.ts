@@ -9,7 +9,10 @@ const monthInput = $<HTMLInputElement>('month');
 let ledger: Row[] = [];
 let snapshots: Snapshot[] = [];
 let selectedAsset = '';
-monthInput.value = currentMonth;
+const requestedMonth = new URLSearchParams(window.location.search).get('month');
+monthInput.value = requestedMonth && /^\d{4}-(?:0[1-9]|1[0-2])$/.test(requestedMonth)
+  ? requestedMonth
+  : currentMonth;
 const won = (value: number) => Number(value).toLocaleString('ko-KR') + '원';
 const labels = {income:'수입',expense:'지출',valuation:'평가',purchase:'매입',debt:'부채 잔액'};
 const sum = (rows: Row[]) => rows.reduce((total,row) => total + row.amount,0);
@@ -254,7 +257,7 @@ function render() {
   renderDebtBalances($('debt-balances'), debtRows, snapshot);
   renderDebtBalances($('portfolio-debts'), debtRows, snapshot);
   $('totals').replaceChildren();
-  for (const [label,value] of [['순자산',assets-debts],['평가 자산',assets],['이번 달 수입',income],['이번 달 지출',expense]] as const) {
+  for (const [label,value] of [['순자산',assets-debts],['평가 자산',assets],['조회 월 수입',income],['조회 월 지출',expense]] as const) {
     const tile = document.createElement('div');
     tile.className = 'metric';
     append(tile,'small',label); append(tile,'strong',won(value)); $('totals').append(tile);
