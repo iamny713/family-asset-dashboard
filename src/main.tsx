@@ -99,7 +99,7 @@ function App() {
 
   return <div className="layout">
     <aside>
-      <a className="brand" href="./" aria-label="가족 자산관리 홈"><span>₩</span>가족 자산관리</a>
+      <a className="brand" href="./" aria-label="노유킹네 집 가계부 프로그램 홈"><span>₩</span>노유킹네 집 가계부 프로그램</a>
       <nav aria-label="주 메뉴">{screens.map((name, index) => <button key={name} type="button"
         aria-current={name === screen ? 'page' : undefined} onClick={() => setScreen(name)}>
         <span aria-hidden="true">{['◫', '▤', '⇄', '◴', '≡'][index]}</span>{name}
@@ -108,7 +108,7 @@ function App() {
     </aside>
     <main>
       <header className="top"><div><p className="eyebrow">{shared ? '공유 Google Sheets 원장 · 조회 전용' : '이 브라우저 원장'}</p><h1>{screen}</h1></div>
-        {shared && <div className="sheet-actions"><button onClick={() => setRefresh(refresh + 1)}>다시 불러오기</button><a href={sheetUrl} target="_blank" rel="noreferrer">Google Sheets 열기</a></div>}
+        {shared && <div className="sheet-actions"><button onClick={() => setRefresh(refresh + 1)}>새로고침</button><a href={sheetUrl} target="_blank" rel="noreferrer">Google Sheets 열기</a></div>}
         {!shared && screen === '대시보드' && <button className="primary" onClick={() => { setError(''); setEditor('snapshot'); }}>월말 스냅샷 저장</button>}
         {!shared && (screen === '자산·부채' || screen === '대출 관리') && <button className="primary" onClick={() => openPosition()}>{screen === '대출 관리' ? '대출 추가' : '항목 추가'}</button>}
         {!shared && screen === '현금흐름' && <button className="primary" onClick={() => openFlow()}>거래 추가</button>}
