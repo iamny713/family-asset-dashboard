@@ -78,3 +78,7 @@ input, select { min-width: 0; border-radius: 8px; border: 1px solid #afc1b4; pad
 }
 
 dialog::backdrop { background: #10251ca6; }
+.source { margin-top: auto; text-align: left; background: transparent; border-color: #466857; color: #e6f2e8; font-size: .85rem; }
+.source:hover { background: #254b3b; }
+.sheet-actions { display: flex; align-items: center; gap: .85rem; flex-wrap: wrap; }
+.sheet-actions a { color: var(--green); font-weight: 650; }

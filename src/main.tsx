@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import { cashflow, emptyLedger, monthNow, today, totals, type Command, type Flow, type Position } from './model';
 import { readLedger, saveCommand, storageKey } from './store';
+import { readSharedLedger, sheetUrl } from './sheets';
 import './style.css';
 
 const currency = (n: number) => new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(n);
@@ -11,7 +12,25 @@ type Editor = 'position' | 'flow' | 'snapshot';
 const blankPosition = (): Position => ({ id: '', kind: 'asset', name: '', group: '', amount: 0, rate: 0, payment: 0, due: '', active: true });
 
 function App() {
-  const [ledger, setLedger] = useState(emptyLedger);
+  const [localLedger, setLedger] = useState(emptyLedger);
+  const [shared, setShared] = useState(true);
+  const [remoteLedger, setRemoteLedger] = useState<ReturnType<typeof emptyLedger>>();
+  const [remoteError, setRemoteError] = useState('');
+  const [refresh, setRefresh] = useState(0);
+  useEffect(() => {
+    if (!shared) return;
+    const controller = new AbortController();
+    setRemoteLedger(undefined);
+    setRemoteError('');
+    readSharedLedger(controller.signal).then(setRemoteLedger, problem => {
+      if (!controller.signal.aborted) {
+        setRemoteError(problem instanceof Error ? problem.message : '공유 원장을 읽지 못했습니다.');
+        controller.abort();
+      }
+    });
+    return () => controller.abort();
+  }, [shared, refresh]);
+  const ledger = shared ? remoteLedger ?? emptyLedger() : localLedger;
   const [screen, setScreen] = useState<Screen>('대시보드');
   const [month, setMonth] = useState(monthNow);
   const [editor, setEditor] = useState<Editor>();
@@ -84,15 +103,18 @@ function App() {
         aria-current={name === screen ? 'page' : undefined} onClick={() => setScreen(name)}>
         <span aria-hidden="true">{['◫', '▤', '⇄', '◴', '≡'][index]}</span>{name}
       </button>)}</nav>
-      <div className="storage"><span />이 브라우저에 저장</div>
+      <button className="source" onClick={() => { setEditor(undefined); setShared(!shared); }}>{shared ? '이 브라우저 원장으로 전환' : '공유 원장으로 전환'}</button>
     </aside>
     <main>
-      <header className="top"><div><p className="eyebrow">가족 원장</p><h1>{screen}</h1></div>
-        {screen === '대시보드' && <button className="primary" onClick={() => { setError(''); setEditor('snapshot'); }}>월말 스냅샷 저장</button>}
-        {(screen === '자산·부채' || screen === '대출 관리') && <button className="primary" onClick={() => openPosition()}>{screen === '대출 관리' ? '대출 추가' : '항목 추가'}</button>}
-        {screen === '현금흐름' && <button className="primary" onClick={() => openFlow()}>거래 추가</button>}
+      <header className="top"><div><p className="eyebrow">{shared ? '공유 Google Sheets 원장 · 조회 전용' : '이 브라우저 원장'}</p><h1>{screen}</h1></div>
+        {shared && <div className="sheet-actions"><button onClick={() => setRefresh(refresh + 1)}>다시 불러오기</button><a href={sheetUrl} target="_blank" rel="noreferrer">Google Sheets 열기</a></div>}
+        {!shared && screen === '대시보드' && <button className="primary" onClick={() => { setError(''); setEditor('snapshot'); }}>월말 스냅샷 저장</button>}
+        {!shared && (screen === '자산·부채' || screen === '대출 관리') && <button className="primary" onClick={() => openPosition()}>{screen === '대출 관리' ? '대출 추가' : '항목 추가'}</button>}
+        {!shared && screen === '현금흐름' && <button className="primary" onClick={() => openFlow()}>거래 추가</button>}
       </header>
-      {error && !editor && <p className="error" role="alert">{error}</p>}
+      {shared && !remoteLedger && <p role={remoteError ? 'alert' : 'status'} className={remoteError ? 'error' : 'muted'}>{remoteError || '공유 원장을 불러오는 중…'}</p>}
+      {!shared && error && !editor && <p className="error" role="alert">{error}</p>}
+      {(!shared || remoteLedger) && <>
       {screen === '대시보드' && <>
         <div className="metrics">
           <Stat label="순자산" value={balances.net} tone="accent" />
@@ -100,7 +122,7 @@ function App() {
           <Stat label="총부채" value={balances.debts} />
         </div>
         <section className="panel"><h2>월별 순자산</h2>
-          {snapshots.length === 0 ? <Empty text="월말 스냅샷을 저장하면 여기에 순자산 추이가 표시됩니다." /> :
+          {snapshots.length === 0 ? <Empty text={shared ? '시트에 월말 스냅샷이 없습니다.' : '월말 스냅샷을 저장하면 여기에 순자산 추이가 표시됩니다.'} /> :
             <div className="chart">{snapshots.map(({ month: key, assets, debts }) => {
               const value = assets - debts;
               return <div className="bar-group" key={key}>
@@ -117,19 +139,19 @@ function App() {
       </>}
       {(screen === '자산·부채' || screen === '대출 관리') && <section className="panel">
         <h2>{screen === '대출 관리' ? '대출 목록' : '보유 항목'}</h2>
-        {positions.length === 0 ? <Empty text={screen === '대출 관리' ? '등록된 대출이 없습니다.' : '첫 자산 또는 부채를 추가하세요.'} /> :
-          <div className="table-wrap"><table><thead><tr><th>이름</th><th>분류</th><th>잔액</th>{screen === '대출 관리' && <><th>금리</th><th>월 상환액</th><th>만기</th></>}<th>관리</th></tr></thead>
+        {positions.length === 0 ? <Empty text={screen === '대출 관리' ? '등록된 대출이 없습니다.' : shared ? '시트에 등록된 자산 또는 부채가 없습니다.' : '첫 자산 또는 부채를 추가하세요.'} /> :
+          <div className="table-wrap"><table><thead><tr><th>이름</th><th>분류</th><th>잔액</th>{screen === '대출 관리' && <><th>금리</th><th>월 상환액</th><th>만기</th></>}{!shared && <th>관리</th>}</tr></thead>
             <tbody>{positions.map(p => <tr key={p.id}><td>{p.name}</td><td>{p.kind === 'debt' ? '부채' : '자산'} · {p.group}</td><td>{currency(p.amount)}</td>
               {screen === '대출 관리' && <><td>{p.rate}%</td><td>{currency(p.payment)}</td><td>{p.due || '—'}</td></>}
-              <td><button className="small" onClick={() => openPosition(p)}>수정</button></td></tr>)}</tbody></table></div>}
+              {!shared && <td><button className="small" onClick={() => openPosition(p)}>수정</button></td>}</tr>)}</tbody></table></div>}
       </section>}
       {screen === '현금흐름' && <>
         <label className="month">조회 월 <input type="month" value={month} onChange={event => setMonth(event.target.value || monthNow())} /></label>
         <div className="metrics"><Stat label="수입" value={flow.income} /><Stat label="지출" value={flow.expense} /><Stat label="잔액" value={flow.net} tone="accent" /></div>
         <section className="panel"><h2>거래 내역</h2>
           {flow.rows.length === 0 ? <Empty text="이 달에 기록된 거래가 없습니다." /> : <div className="table-wrap"><table>
-            <thead><tr><th>날짜</th><th>내용</th><th>구분</th><th>금액</th><th>관리</th></tr></thead>
-            <tbody>{[...flow.rows].sort((a, b) => b.day.localeCompare(a.day)).map(f => <tr key={f.id}><td>{f.day}</td><td>{f.name}</td><td>{f.kind === 'income' ? '수입' : '지출'}</td><td>{currency(f.amount)}</td><td><button className="small" onClick={() => openFlow(f)}>수정</button></td></tr>)}</tbody>
+            <thead><tr><th>날짜</th><th>내용</th><th>구분</th><th>금액</th>{!shared && <th>관리</th>}</tr></thead>
+            <tbody>{[...flow.rows].sort((a, b) => b.day.localeCompare(a.day)).map(f => <tr key={f.id}><td>{f.day}</td><td>{f.name}</td><td>{f.kind === 'income' ? '수입' : '지출'}</td><td>{currency(f.amount)}</td>{!shared && <td><button className="small" onClick={() => openFlow(f)}>수정</button></td>}</tr>)}</tbody>
           </table></div>}
         </section>
       </>}
@@ -141,6 +163,7 @@ function App() {
               <td><details><summary>변경 내용</summary>{h.before && <pre>{h.before}</pre>}<pre>{h.after}</pre></details></td></tr>)}
           </tbody></table></div>}
       </section>}
+      </>}
     </main>
     {editor && <dialog ref={dialog} aria-labelledby="editor-title" onCancel={event => {
       event.preventDefault();
