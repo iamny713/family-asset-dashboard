@@ -41,6 +41,7 @@ function line(container: HTMLElement, label: string, value: string, definition =
   append(item,definition ? 'dt' : 'span',label);
   append(item,definition ? 'dd' : 'strong',value);
   container.append(item);
+  return item;
 }
 function bar(container: HTMLElement, value: number, max: number, color: string) {
   const track = append(container,'div','');
@@ -263,7 +264,7 @@ function renderCashflowTrend(month: string) {
   scroll.className = 'cashflow-chart-scroll';
   const graph = append(scroll, 'div', '');
   graph.className = 'cashflow-chart';
-  graph.style.gridTemplateColumns = 'max-content repeat(' + months.length + ', minmax(76px, 1fr))';
+  graph.style.gridTemplateColumns = 'max-content repeat(' + months.length + ', minmax(184px, 1fr))';
   const axis = append(graph, 'div', '');
   axis.className = 'cashflow-chart-axis';
   axis.setAttribute('aria-hidden', 'true');
@@ -282,6 +283,9 @@ function renderCashflowTrend(month: string) {
       column.title = key + ' ' + labels[kind] + ' ' + won(values[kind]);
       column.setAttribute('role', 'img');
       column.setAttribute('aria-label', column.title);
+      const amount = append(column, 'span', won(values[kind]));
+      amount.className = 'cashflow-column-amount';
+      amount.setAttribute('aria-hidden', 'true');
     }
     append(group, 'small', key);
   }
@@ -455,19 +459,20 @@ function renderAssetTrends(month: string) {
     append(panel, 'h2', asset.title);
     const node = append(panel, 'div', '');
     const context = append(panel, 'dl', '');
+    context.className = 'asset-metrics';
     const last = rows[rows.length - 1];
     const category = asset.category;
     const purchase = category === '부동산' && ledger.find(row => row.kind === 'purchase' && row.id === asset.id);
     plotTrend(node, rows, purchase ? purchase.amount : undefined);
-    line(context,'최근 평가액',won(last.amount),true);
+    line(context, '최근 평가액', won(last.amount), true).className = 'asset-metric asset-metric-current';
     if (purchase) {
-      line(context,'매입가 · 점선',won(purchase.amount),true);
+      line(context, '매입가', won(purchase.amount), true).className = 'asset-metric asset-metric-purchase';
       const difference = last.amount-purchase.amount;
-      line(context,'매입가 대비 차이',(difference>0?'+':'')+won(difference),true);
+      line(context, '매입가 대비 차이', (difference > 0 ? '+' : '') + won(difference), true).className = 'asset-metric';
     } else if (rows.length > 1) {
       const previous = rows[rows.length - 2];
       const difference = last.amount-previous.amount;
-      line(context,previous.month+' 기록 대비',(difference>0?'+':'')+won(difference),true);
+      line(context, previous.month + ' 기록 대비', (difference > 0 ? '+' : '') + won(difference), true).className = 'asset-metric';
     }
     if (category === '주식') append(node,'small','계좌 평가액 기준 · 입출금을 제외한 투자 수익률은 별도 계산이 필요합니다.');
   }
