@@ -1,4 +1,4 @@
-import { monthNow, type Snapshot } from './model';
+import { monthNow, type History, type Snapshot } from './model';
 import { readSharedLedger } from './sheets';
 import { dashboardRows, type Row } from './dashboard-data';
 import './style.css';
@@ -8,6 +8,7 @@ const currentMonth = monthNow();
 const monthInput = $<HTMLInputElement>('month');
 let ledger: Row[] = [];
 let snapshots: Snapshot[] = [];
+let monthlyNotes: History[] = [];
 const requestedMonth = new URLSearchParams(window.location.search).get('month');
 monthInput.value = requestedMonth && /^\d{4}-(?:0[1-9]|1[0-2])$/.test(requestedMonth)
   ? requestedMonth
@@ -232,8 +233,17 @@ function renderDebtHistory(month: string) {
     append(chart, 'p', '조회 월까지 부채 잔액 기록이 없습니다.');
   }
 }
+function renderMonthlyNotes(month: string) {
+  for (const kind of ['income', 'expense']) {
+    const target = month + ':' + kind;
+    const note = monthlyNotes.find(entry => entry.target === target);
+    $(kind + '-note').textContent = note?.after || '등록된 메모가 없습니다.';
+  }
+}
+
 function render() {
   const month = monthInput.value;
+  renderMonthlyNotes(month);
   const monthRows = ledger.filter(row => row.month === month);
   const flow = monthRows.filter(row => ['income','expense'].includes(row.kind));
   const income = sum(flow.filter(row => row.kind === 'income'));
@@ -437,6 +447,8 @@ async function reload() {
     const shared = await readSharedLedger(new AbortController().signal);
     ledger = dashboardRows(shared, currentMonth);
     snapshots = shared.snapshots;
+    monthlyNotes = shared.history.filter(entry => entry.action === 'monthly-note')
+      .sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
     render();
     status.hidden = true;
   } catch (error) {

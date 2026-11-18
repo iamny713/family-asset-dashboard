@@ -168,3 +168,10 @@ select{font:inherit;color:#122744;background:#fff;border:1px solid #c5d6ee;paddi
   .transaction{align-items:flex-start}
   .transaction-amount{font-size:13px}
 }
+
+.monthly-notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px}
+.monthly-note{padding:14px 16px;border-radius:14px;background:#eef7f3}
+.monthly-note[data-kind="expense"]{background:#fff2ec}
+.monthly-note h3{margin:0 0 6px;color:#106148}
+.monthly-note[data-kind="expense"] h3{color:#934127}
+.monthly-note p{white-space:pre-wrap;overflow-wrap:anywhere}
