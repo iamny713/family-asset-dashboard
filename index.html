@@ -15,8 +15,8 @@
 <div class="row filters"><div><h1>대시보드</h1><small>공유 원장 · 조회 전용</small></div><label>조회 월 <input id="month" type="month"></label></div>
 <div id="overview">
 <section class="metrics" id="totals" aria-label="월별 요약"></section>
-<section class="panel"><h2>월별 금융자산 추이</h2><div id="total-asset-trend"></div><dl id="total-asset-context"></dl></section>
-<div class="columns"><section class="panel"><h2>자산 포트폴리오</h2><fieldset id="portfolio-scope" class="portfolio-scope"><legend>표시 범위</legend><label><input id="portfolio-include-property" type="radio" name="portfolio-scope" value="all" checked> 부동산 포함</label><label><input type="radio" name="portfolio-scope" value="financial"> 부동산 제외</label></fieldset><div id="allocation"></div><div id="assets"></div><div id="portfolio-debt-section"><h3>부채</h3><dl id="portfolio-debts" class="debt-values"></dl></div></section><section class="panel"><h2>월간 현금흐름</h2><div id="flow-chart"></div></section></div>
+<section class="panel"><div class="row asset-scope"><h2 id="total-asset-title">월별 총자산 추이</h2><label class="asset-switch"><input id="portfolio-include-property" type="checkbox" role="switch" aria-controls="total-asset-trend allocation assets portfolio-debt-section" checked><span class="asset-switch-track" aria-hidden="true"></span>부동산 포함</label></div><div id="total-asset-trend"></div><dl id="total-asset-context"></dl></section>
+<div class="columns"><section class="panel"><h2>자산 포트폴리오</h2><div id="allocation"></div><div id="assets"></div><div id="portfolio-debt-section"><h3>부채</h3><dl id="portfolio-debts" class="debt-values"></dl></div></section><section class="panel"><h2>월간 현금흐름</h2><div id="flow-chart"></div></section></div>
 <div class="columns"><section class="panel"><h2>사람별 수입·지출</h2><dl id="people"></dl></section><section class="panel"><h2>분류별 수입·지출</h2><dl id="categories"></dl></section></div>
 </div>
 <div id="monthly" hidden>

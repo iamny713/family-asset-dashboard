@@ -74,8 +74,7 @@ function grouped(id: string, rows: Row[], field: 'person' | 'category') {
   }
   if (!groups.size) line(node,'기록 없음','—',true);
 }
-function portfolio(balances: Row[]) {
-  const includeProperty = $<HTMLInputElement>('portfolio-include-property').checked;
+function portfolio(balances: Row[], includeProperty: boolean) {
   const rows = balances.filter(row => includeProperty ? row.kind === 'valuation' : isFinancialAsset(row));
   $('portfolio-debt-section').hidden = !includeProperty;
   const chart = $('allocation');
@@ -289,8 +288,9 @@ function render() {
     : '금융자산은 부동산 제외 · 순자산은 부동산을 포함한 전체 자산 기준').className = 'metric-note';
   grouped('people',flow,'person');
   grouped('categories',flow,'category');
-  renderFinancialAssetTrend(month);
-  portfolio(balances);
+  const includeProperty = includePropertySwitch.checked;
+  renderAssetTotalTrend(month, includeProperty);
+  portfolio(balances, includeProperty);
   flowChart('flow-chart',income,expense);
   flowChart('monthly-flow',income,expense);
   renderTransactions(flow);
@@ -364,31 +364,39 @@ function plotTrend(node: HTMLElement, rows: TrendPoint[], reference?: number) {
   }
 }
 
-function renderFinancialAssetTrend(month: string) {
+function renderAssetTotalTrend(month: string, includeProperty: boolean) {
   const node = $('total-asset-trend');
   const context = $('total-asset-context');
   node.replaceChildren();
   context.replaceChildren();
 
+  const title = includeProperty ? '총자산' : '금융자산';
+  $('total-asset-title').textContent = '월별 ' + title + ' 추이';
   const valuations = ledger.filter(row => row.kind === 'valuation' && row.month <= month);
-  const months = new Set(valuations.filter(isFinancialAsset).map(row => row.month));
+  const inScope = (row: Row) => includeProperty || isFinancialAsset(row);
+  const monthEnd = new Map(includeProperty
+    ? snapshots.filter(row => row.month < currentMonth && row.month <= month).map(row => [row.month, row.assets] as const)
+    : []);
+  const months = new Set([...valuations.filter(inScope).map(row => row.month), ...monthEnd.keys()]);
   const points = [...months].sort().slice(-12).map(key => ({
     month: key,
-    amount: sum(latest(valuations.filter(row => row.month <= key)).filter(isFinancialAsset)),
+    amount: monthEnd.get(key) ?? sum(latest(valuations.filter(row => row.month <= key)).filter(inScope)),
   }));
   const last = points.at(-1);
   if (!last) {
-    append(node, 'p', '조회 월까지 금융자산 평가 기록이 없습니다.');
+    append(node, 'p', '조회 월까지 ' + title + ' 평가 기록이 없습니다.');
     return;
   }
   plotTrend(node, points);
-  line(context, last.month + ' 금융자산', won(last.amount), true);
+  line(context, last.month + ' ' + title, won(last.amount), true);
   const previous = points.at(-2);
   if (previous) {
     const difference = last.amount - previous.amount;
     line(context, previous.month + ' 기록 대비', (difference > 0 ? '+' : '') + won(difference), true);
   }
-  append(node, 'small', '부동산 제외 · 금융자산별 최근 기록의 합계');
+  append(node, 'small', includeProperty
+    ? '부동산 포함 · 월말 스냅샷 또는 자산별 최근 평가액 합계'
+    : '부동산 제외 · 금융자산별 최근 기록의 합계');
 }
 
 function renderAssetTrends(month: string) {
@@ -435,7 +443,8 @@ for (const button of menu) button.addEventListener('click',() => {
   root.querySelector('h1')!.textContent = button.textContent;
 });
 root.querySelector('h1')!.textContent = '대시보드';
-$('portfolio-scope').addEventListener('change', render);
+const includePropertySwitch = $<HTMLInputElement>('portfolio-include-property');
+includePropertySwitch.addEventListener('change', render);
 monthInput.addEventListener('change',() => {
   if (!monthInput.value) monthInput.value = currentMonth;
   render();
