@@ -279,6 +279,7 @@ function render() {
   if (snapshot) append($('totals'), 'small', '월말 스냅샷 기준 · 포트폴리오는 기록된 개별 자산 기준').className = 'metric-note';
   grouped('people',flow,'person');
   grouped('categories',flow,'category');
+  renderTotalAssetTrend(month);
   portfolio(balances.filter(row => row.kind === 'valuation'));
   flowChart('flow-chart',income,expense);
   flowChart('monthly-flow',income,expense);
@@ -320,6 +321,77 @@ function refreshAssetOptions() {
   if (holdings.some(row => row.id === selected)) assetSelect.value = selected;
   assetSelect.disabled = holdings.length === 0;
 }
+type TrendPoint = { month: string; amount: number };
+
+function plotTrend(node: HTMLElement, rows: TrendPoint[], reference?: number) {
+  const first = rows[0];
+  const last = rows[rows.length - 1];
+  const values = rows.map(row => row.amount);
+  if (reference !== undefined) values.push(reference);
+  const low = Math.min(...values);
+  const high = Math.max(...values);
+  const pad = Math.max(1,(high-low)*.12,high*.005);
+  const min = Math.max(0,low-pad);
+  const max = high+pad;
+  const y = (value: number) => 90 - (value-min)/(max-min)*80;
+  const monthIndex = (month: string) => Number(month.slice(0,4))*12+Number(month.slice(5,7));
+  const duration = monthIndex(last.month)-monthIndex(first.month);
+  const x = (row: TrendPoint) => duration ? 8 + (monthIndex(row.month)-monthIndex(first.month))/duration*184 : 100;
+  const graph = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  graph.setAttribute('viewBox','0 0 200 100');
+  graph.setAttribute('preserveAspectRatio','none');
+  graph.setAttribute('class','trend-svg');
+  graph.setAttribute('role','img');
+  graph.setAttribute('aria-label',rows.map(row => row.month + ' ' + won(row.amount)).join(', ') + (reference !== undefined ? ', 매입가 ' + won(reference) : ''));
+  const mark = (tag: string, attrs: Record<string, string | number>) => {
+    const item = document.createElementNS('http://www.w3.org/2000/svg',tag);
+    for (const [key,value] of Object.entries(attrs)) item.setAttribute(key,String(value));
+    graph.append(item);
+  };
+  for (const level of [10,50,90]) mark('line',{x1:8,x2:192,y1:level,y2:level,stroke:'currentColor',class:'trend-grid','vector-effect':'non-scaling-stroke'});
+  if (reference !== undefined) mark('line',{x1:8,x2:192,y1:y(reference),y2:y(reference),stroke:'#9b6d33','stroke-dasharray':'4 4','vector-effect':'non-scaling-stroke'});
+  mark('polyline',{points:rows.map(row => x(row)+','+y(row.amount)).join(' '),fill:'none',stroke:'currentColor',class:'trend-path','stroke-width':2,'vector-effect':'non-scaling-stroke'});
+  for (const row of rows) mark('line',{x1:x(row),x2:x(row),y1:y(row.amount)-.1,y2:y(row.amount)+.1,stroke:'currentColor',class:'trend-path','stroke-width':6,'stroke-linecap':'round','vector-effect':'non-scaling-stroke'});
+  node.append(graph);
+  const ticks = append(node,'div','');
+  ticks.className = 'trend-labels';
+  ticks.style.gridTemplateColumns = 'repeat(' + rows.length + ',minmax(0,1fr))';
+  for (const row of rows) {
+    const tick = append(ticks,'span',row.month);
+    append(tick,'br','');
+    append(tick,'small',won(row.amount));
+  }
+}
+
+function renderTotalAssetTrend(month: string) {
+  const node = $('total-asset-trend');
+  const context = $('total-asset-context');
+  node.replaceChildren();
+  context.replaceChildren();
+
+  const valuations = ledger.filter(row => row.kind === 'valuation' && row.month <= month);
+  const monthEnd = new Map(snapshots.filter(row => row.month < currentMonth && row.month <= month)
+    .map(row => [row.month, row.assets]));
+  const months = new Set([...valuations.map(row => row.month), ...monthEnd.keys()]);
+  const points = [...months].sort().slice(-12).map(key => ({
+    month: key,
+    amount: monthEnd.get(key) ?? sum(latest(valuations.filter(row => row.month <= key))),
+  }));
+  const last = points.at(-1);
+  if (!last) {
+    append(node, 'p', '조회 월까지 총자산 평가 기록이 없습니다.');
+    return;
+  }
+  plotTrend(node, points);
+  line(context, last.month + ' 총자산', won(last.amount), true);
+  const previous = points.at(-2);
+  if (previous) {
+    const difference = last.amount - previous.amount;
+    line(context, previous.month + ' 기록 대비', (difference > 0 ? '+' : '') + won(difference), true);
+  }
+  append(node, 'small', '월말 스냅샷 또는 자산별 최근 평가액 합계 · 기록이 있는 달 기준');
+}
+
 function renderTrend() {
   const node = $('asset-trend');
   node.replaceChildren();
@@ -332,47 +404,12 @@ function renderTrend() {
   const rows = [...byMonth.values()].sort((a, b) => a.month.localeCompare(b.month)).slice(-12);
   const context = $('asset-context');
   context.replaceChildren();
-  const first = rows[0];
   const last = rows.at(-1);
   const category = last?.category;
   $('trend-title').textContent = ({부동산:'부동산 평가액 추이',주식:'증권계좌 평가액 추이',현금:'현금'} as Record<string, string>)[category ?? ''] || '자산별 월간 평가액';
   if (!last) { append(node,'p','선택한 월까지 평가 기록이 없습니다.'); return; }
   const purchase = category === '부동산' && ledger.find(row => row.kind === 'purchase' && row.id === last.id);
-  const values = rows.map(row => row.amount);
-  if (purchase) values.push(purchase.amount);
-  const low = Math.min(...values);
-  const high = Math.max(...values);
-  const pad = Math.max(1,(high-low)*.12,high*.005);
-  const min = Math.max(0,low-pad);
-  const max = high+pad;
-  const y = (value: number) => 90 - (value-min)/(max-min)*80;
-  const monthIndex = (month: string) => Number(month.slice(0,4))*12+Number(month.slice(5,7));
-  const duration = monthIndex(last.month)-monthIndex(first.month);
-  const x = (row: Row) => duration ? 8 + (monthIndex(row.month)-monthIndex(first.month))/duration*184 : 100;
-  const graph = document.createElementNS('http://www.w3.org/2000/svg','svg');
-  graph.setAttribute('viewBox','0 0 200 100');
-  graph.setAttribute('preserveAspectRatio','none');
-  graph.setAttribute('class','trend-svg');
-  graph.setAttribute('role','img');
-  graph.setAttribute('aria-label',rows.map(row => row.month + ' ' + won(row.amount)).join(', ') + (purchase ? ', 매입가 ' + won(purchase.amount) : ''));
-  const mark = (tag: string, attrs: Record<string, string | number>) => {
-    const item = document.createElementNS('http://www.w3.org/2000/svg',tag);
-    for (const [key,value] of Object.entries(attrs)) item.setAttribute(key,String(value));
-    graph.append(item);
-  };
-  for (const level of [10,50,90]) mark('line',{x1:8,x2:192,y1:level,y2:level,stroke:'currentColor',class:'trend-grid','vector-effect':'non-scaling-stroke'});
-  if (purchase) mark('line',{x1:8,x2:192,y1:y(purchase.amount),y2:y(purchase.amount),stroke:'#9b6d33','stroke-dasharray':'4 4','vector-effect':'non-scaling-stroke'});
-  mark('polyline',{points:rows.map(row => x(row)+','+y(row.amount)).join(' '),fill:'none',stroke:'currentColor',class:'trend-path','stroke-width':2,'vector-effect':'non-scaling-stroke'});
-  for (const row of rows) mark('line',{x1:x(row),x2:x(row),y1:y(row.amount)-.1,y2:y(row.amount)+.1,stroke:'currentColor',class:'trend-path','stroke-width':6,'stroke-linecap':'round','vector-effect':'non-scaling-stroke'});
-  node.append(graph);
-  const ticks = append(node,'div','');
-  ticks.className = 'trend-labels';
-  ticks.style.gridTemplateColumns = 'repeat(' + rows.length + ',minmax(0,1fr))';
-  for (const row of rows) {
-    const tick = append(ticks,'span',row.month);
-    append(tick,'br','');
-    append(tick,'small',won(row.amount));
-  }
+  plotTrend(node, rows, purchase ? purchase.amount : undefined);
   line(context,category === '부동산' ? '최근 평가액' : category === '주식' ? '최근 계좌 평가액' : '최근 잔액',won(last.amount),true);
   if (purchase) {
     line(context,'매입가 · 점선',won(purchase.amount),true);
