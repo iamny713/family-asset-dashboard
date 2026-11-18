@@ -160,6 +160,22 @@ function renderTransactions(rows: Row[]) {
     }
   }
 }
+function renderDebtBalances(container: HTMLElement, rows: Row[], snapshot?: Snapshot) {
+  container.replaceChildren();
+  const total = sum(rows);
+  if (rows.length) {
+    for (const row of rows) {
+      const label = row.month === monthInput.value ? row.title : row.title + ' (' + row.month + ' 기록)';
+      line(container, label, won(row.amount), true);
+    }
+    line(container, '기록된 부채 합계', won(total), true);
+  } else {
+    line(container, '조회 월까지 개별 부채 잔액 기록이 없습니다.', '—', true);
+  }
+  if (snapshot && (!rows.length || snapshot.debts !== total)) {
+    line(container, '월말 스냅샷 총부채', won(snapshot.debts), true);
+  }
+}
 function render() {
   const month = monthInput.value;
   const monthRows = ledger.filter(row => row.month === month);
@@ -169,7 +185,10 @@ function render() {
   const balances = latest(ledger.filter(row => row.month <= month && ['valuation','debt'].includes(row.kind)));
   const snapshot = month === currentMonth ? undefined : snapshots.find(row => row.month === month);
   const assets = snapshot?.assets ?? sum(balances.filter(row => row.kind === 'valuation'));
-  const debts = snapshot?.debts ?? sum(balances.filter(row => row.kind === 'debt'));
+  const debtRows = balances.filter(row => row.kind === 'debt' && row.amount > 0);
+  const debts = snapshot?.debts ?? sum(debtRows);
+  renderDebtBalances($('monthly-debt-balances'), debtRows, snapshot);
+  renderDebtBalances($('debt-balances'), debtRows, snapshot);
   $('totals').replaceChildren();
   for (const [label,value] of [['순자산',assets-debts],['평가 자산',assets],['이번 달 수입',income],['이번 달 지출',expense]] as const) {
     const tile = document.createElement('div');
