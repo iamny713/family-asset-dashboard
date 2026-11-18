@@ -17,7 +17,8 @@ export type Row = {
 function assetCategory(group: string) {
   if (/부동산|주택|아파트|토지/.test(group)) return '부동산';
   if (/주식|증권|펀드|ETF/i.test(group)) return '주식';
-  if (/현금|예금|적금|입출금|통장|저축|CMA/i.test(group)) return '현금';
+  if (/적금/.test(group)) return '적금';
+  if (/현금|예금|입출금|통장|저축|CMA/i.test(group)) return '현금';
   return '기타 자산';
 }
 

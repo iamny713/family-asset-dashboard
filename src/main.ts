@@ -79,7 +79,7 @@ function portfolio(rows: Row[]) {
   const detail = $('assets');
   chart.replaceChildren();
   detail.replaceChildren();
-  const groups = [['부동산','#173b79'],['주식','#356cd2'],['현금','#78a8f4'], ...(rows.some(row => row.category === '기타 자산') ? [['기타 자산','#8193ad']] : [])].map(([category,color]) => {
+  const groups = [['부동산','#173b79'],['주식','#356cd2'],['현금','#78a8f4'], ...(rows.some(row => row.category === '적금') ? [['적금','#087e75']] : []), ...(rows.some(row => row.category === '기타 자산') ? [['기타 자산','#8193ad']] : [])].map(([category,color]) => {
     const items = rows.filter(row => row.category === category);
     return {category,color,items,amount:sum(items)};
   });
