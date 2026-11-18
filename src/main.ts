@@ -16,6 +16,7 @@ monthInput.value = requestedMonth && /^\d{4}-(?:0[1-9]|1[0-2])$/.test(requestedM
 const won = (value: number) => Number(value).toLocaleString('ko-KR') + '원';
 const labels = {income:'수입',expense:'지출',valuation:'평가',purchase:'매입',debt:'부채 잔액'};
 const sum = (rows: Row[]) => rows.reduce((total,row) => total + row.amount,0);
+const isFinancialAsset = (row: Row) => row.kind === 'valuation' && row.category !== '부동산';
 function latest(rows: Row[]) {
   const records = new Map<string, Row>();
   for (const row of rows) {
@@ -265,7 +266,7 @@ function render() {
   renderDebtBalances($('portfolio-debts'), debtRows, snapshot);
   $('totals').replaceChildren();
   const metrics = [
-    ['평가자산', assets, 'asset'],
+    ['금융자산', sum(balances.filter(isFinancialAsset)), 'asset'],
     ['순자산', assets - debts, 'net'],
     ['총부채', debts, 'debt'],
     ['조회 월 수입', income, 'income'],
@@ -278,10 +279,12 @@ function render() {
     append(tile, 'small', label).className = 'metric-label';
     append(tile, 'strong', won(value));
   }
-  if (snapshot) append($('totals'), 'small', '월말 스냅샷 기준 · 포트폴리오는 기록된 개별 자산 기준').className = 'metric-note';
+  append($('totals'), 'small', snapshot
+    ? '금융자산은 부동산 제외 · 순자산과 총부채는 월말 스냅샷 기준'
+    : '금융자산은 부동산 제외 · 순자산은 부동산을 포함한 전체 자산 기준').className = 'metric-note';
   grouped('people',flow,'person');
   grouped('categories',flow,'category');
-  renderTotalAssetTrend(month);
+  renderFinancialAssetTrend(month);
   portfolio(balances.filter(row => row.kind === 'valuation'));
   flowChart('flow-chart',income,expense);
   flowChart('monthly-flow',income,expense);
@@ -356,33 +359,31 @@ function plotTrend(node: HTMLElement, rows: TrendPoint[], reference?: number) {
   }
 }
 
-function renderTotalAssetTrend(month: string) {
+function renderFinancialAssetTrend(month: string) {
   const node = $('total-asset-trend');
   const context = $('total-asset-context');
   node.replaceChildren();
   context.replaceChildren();
 
   const valuations = ledger.filter(row => row.kind === 'valuation' && row.month <= month);
-  const monthEnd = new Map(snapshots.filter(row => row.month < currentMonth && row.month <= month)
-    .map(row => [row.month, row.assets]));
-  const months = new Set([...valuations.map(row => row.month), ...monthEnd.keys()]);
+  const months = new Set(valuations.filter(isFinancialAsset).map(row => row.month));
   const points = [...months].sort().slice(-12).map(key => ({
     month: key,
-    amount: monthEnd.get(key) ?? sum(latest(valuations.filter(row => row.month <= key))),
+    amount: sum(latest(valuations.filter(row => row.month <= key)).filter(isFinancialAsset)),
   }));
   const last = points.at(-1);
   if (!last) {
-    append(node, 'p', '조회 월까지 총자산 평가 기록이 없습니다.');
+    append(node, 'p', '조회 월까지 금융자산 평가 기록이 없습니다.');
     return;
   }
   plotTrend(node, points);
-  line(context, last.month + ' 총자산', won(last.amount), true);
+  line(context, last.month + ' 금융자산', won(last.amount), true);
   const previous = points.at(-2);
   if (previous) {
     const difference = last.amount - previous.amount;
     line(context, previous.month + ' 기록 대비', (difference > 0 ? '+' : '') + won(difference), true);
   }
-  append(node, 'small', '월말 스냅샷 또는 자산별 최근 평가액 합계 · 기록이 있는 달 기준');
+  append(node, 'small', '부동산 제외 · 금융자산별 최근 기록의 합계');
 }
 
 function renderAssetTrends(month: string) {
