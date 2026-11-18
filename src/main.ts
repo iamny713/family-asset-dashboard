@@ -248,15 +248,42 @@ function renderCashflowTrend(month: string) {
     const { income, expense } = totals.get(key)!;
     return [income, expense];
   }));
+  const magnitude = 10 ** Math.floor(Math.log10(Math.max(1, max / 4)));
+  const step = Math.ceil(max / 4 / magnitude) * magnitude;
+  const ceiling = step * 4;
+  const compact = new Intl.NumberFormat('ko-KR', { notation: 'compact', maximumFractionDigits: 1 });
+  const legend = append(chart, 'div', '');
+  legend.className = 'legend';
+  for (const kind of ['income', 'expense'] as const) {
+    const item = append(legend, 'span', '');
+    append(item, 'i', '').className = 'dot ' + kind;
+    append(item, 'span', labels[kind]);
+  }
+  const scroll = append(chart, 'div', '');
+  scroll.className = 'cashflow-chart-scroll';
+  const graph = append(scroll, 'div', '');
+  graph.className = 'cashflow-chart';
+  graph.style.gridTemplateColumns = 'max-content repeat(' + months.length + ', minmax(76px, 1fr))';
+  const axis = append(graph, 'div', '');
+  axis.className = 'cashflow-chart-axis';
+  axis.setAttribute('aria-hidden', 'true');
+  for (let tick = 4; tick >= 0; tick--) append(axis, 'span', compact.format(step * tick) + '원');
+
   for (const key of months) {
-    const group = append(chart, 'div', '');
+    const group = append(graph, 'div', '');
     group.className = 'cashflow-trend-month';
-    append(group, 'h3', key);
+    const columns = append(group, 'div', '');
+    columns.className = 'cashflow-bars';
     const values = totals.get(key)!;
     for (const kind of ['income', 'expense'] as const) {
-      line(group, labels[kind], won(values[kind]));
-      bar(group, values[kind], max, kind);
+      const column = append(columns, 'div', '');
+      column.className = 'cashflow-column ' + kind;
+      column.style.height = (ceiling ? values[kind] / ceiling * 100 : 0) + '%';
+      column.title = key + ' ' + labels[kind] + ' ' + won(values[kind]);
+      column.setAttribute('role', 'img');
+      column.setAttribute('aria-label', column.title);
     }
+    append(group, 'small', key);
   }
 }
 
