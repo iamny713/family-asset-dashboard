@@ -11,7 +11,7 @@
 | 탭 | 첫 행 (열 순서) | 값 |
 | --- | --- | --- |
 | 자산부채 | `id, kind, name, group, amount, rate, payment, due, active` | 고유 ID, `asset` 또는 `debt`, 이름, 분류, 원 단위 정수, 연 금리(% 수치), 월 상환액(원), 만기(YYYY-MM-DD), TRUE/FALSE. 금리·상환액·만기·활성 여부는 생략 가능 |
-| 현금흐름 | `id, day, kind, name, amount` | 고유 ID, YYYY-MM-DD, `income` 또는 `expense`, 내용, 양의 원 단위 정수 |
+| 현금흐름 | `id, day, kind, name, amount, category, person, account` | 고유 ID, YYYY-MM-DD, `income` 또는 `expense`, 거래 설명, 양의 원 단위 정수, 표준 분류, 사람, 계좌. 마지막 세 열은 기존 원장에서 생략 가능 |
 | 월말스냅샷 | `month, assets, debts` | YYYY-MM, 총자산(원), 총부채(원). 월마다 한 행 |
 | 변경이력 | `at, actor, action, target, before, after` | ISO 시각, 수정자, 명령 유형, 대상 ID, 수정 전 값, 수정 후 값. 시트에서 직접 한 수정은 이 탭에 자동 기록되지 않음 |
 

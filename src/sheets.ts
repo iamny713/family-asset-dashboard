@@ -1,3 +1,4 @@
+import { isFlowCategory } from './flow-categories.ts';
 import { emptyLedger, type Flow, type History, type Ledger, type Position, type Snapshot } from './model.ts';
 
 export const sheetUrl = 'https://docs.google.com/spreadsheets/d/1DkO-A0tAQS6825b1DRIEbntCuyRanRMNKKzWX8FV-TQ/edit';
@@ -7,13 +8,14 @@ const columns = {
   월말스냅샷: ['month', 'assets', 'debts'],
   변경이력: ['at', 'actor', 'action', 'target', 'before', 'after'],
 } as const;
+const flowMetadata = ['category', 'person', 'account'] as const;
 type Tab = keyof typeof columns;
 type Cell = { v?: string | number | boolean | null; f?: string };
 type Response = { status?: string; table?: { cols: { label: string }[]; rows: { c: (Cell | null)[] }[] } };
 
 function query(tab: Tab, signal: AbortSignal) {
   const url = new URL(sheetUrl.replace(/\/edit$/, '/gviz/tq'));
-  url.search = new URLSearchParams({ sheet: tab, range: 'A:' + String.fromCharCode(64 + columns[tab].length), headers: '1',
+  url.search = new URLSearchParams({ sheet: tab, range: 'A:' + String.fromCharCode(64 + columns[tab].length + (tab === '현금흐름' ? flowMetadata.length : 0)), headers: '1',
     tqx: 'out:json;responseHandler:receiveLedger' }).toString();
   return new Promise<Response>((resolve, reject) => {
     signal.throwIfAborted();
@@ -63,6 +65,10 @@ export function decodeRows(tab: Tab, response: Response) {
   if (!table || columns[tab].some((label, i) => table.cols[i]?.label.trim() !== label)) {
     throw new Error(tab + ' 탭의 첫 행이 원장 열 구성과 다릅니다.');
   }
+  if (tab === '현금흐름' && flowMetadata.some((label, i) => {
+    const column = table.cols[columns[tab].length + i]?.label.trim();
+    return column && column !== label;
+  })) throw new Error(tab + ' 탭의 선택 열은 category, person, account 순서여야 합니다.');
   const ledger = emptyLedger();
   const keys = new Set<string>();
   table.rows.forEach(({ c }, index) => {
@@ -84,7 +90,15 @@ export function decodeRows(tab: Tab, response: Response) {
     if (tab === '현금흐름') {
       const f = { id, day: date(c[1]), kind: string(c[2]), name: string(c[3]), amount: number(c[4]) };
       if (!day(f.day) || !['income', 'expense'].includes(f.kind) || !f.name || !amount(f.amount) || f.amount === 0) throw invalid();
-      ledger.flows.push(f as Flow);
+      const flow = f as Flow;
+      for (const [i, field] of flowMetadata.entries()) {
+        const cellIndex = columns.현금흐름.length + i;
+        if (table.cols[cellIndex]?.label.trim() !== field) continue;
+        const metadata = string(c[cellIndex]);
+        if (field === 'category' && metadata && !isFlowCategory(flow.kind, metadata)) throw invalid();
+        if (metadata) flow[field] = metadata;
+      }
+      ledger.flows.push(flow);
     }
     if (tab === '월말스냅샷') {
       const s: Snapshot = { month: date(c[0]).slice(0, 7), assets: number(c[1]), debts: number(c[2]) };

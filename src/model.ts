@@ -1,8 +1,10 @@
+import { isFlowCategory } from './flow-categories.ts';
+
 export type Position = {
   id: string; kind: 'asset' | 'debt'; name: string; group: string; amount: number;
   rate: number; payment: number; due: string; active: boolean;
 };
-export type Flow = { id: string; day: string; kind: 'income' | 'expense'; name: string; amount: number };
+export type Flow = { id: string; day: string; kind: 'income' | 'expense'; name: string; amount: number; category?: string; person?: string; account?: string };
 export type Snapshot = { month: string; assets: number; debts: number };
 export type History = { at: string; actor: string; action: string; target: string; before: string; after: string };
 export type Ledger = { positions: Position[]; flows: Flow[]; snapshots: Snapshot[]; history: History[] };
@@ -53,7 +55,7 @@ export function applyCommand(ledger: Ledger, command: Command, actor: string, at
     case 'flow': {
       const f = command.value;
       if (!f.id || !f.name.trim() || !isDay(f.day) || !['income', 'expense'].includes(f.kind) ||
-          !isAmount(f.amount) || f.amount === 0) throw new Error('현금흐름 입력을 확인하세요.');
+          !isAmount(f.amount) || f.amount === 0 || (f.category !== undefined && !isFlowCategory(f.kind, f.category))) throw new Error('현금흐름 입력을 확인하세요.');
       previous = ledger.flows.find(row => row.id === f.id);
       target = f.id;
       next.flows = [...ledger.flows.filter(row => row.id !== f.id), f];

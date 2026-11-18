@@ -88,6 +88,7 @@ function App() {
       } });
     }
     if (editor === 'flow') void save({ type: 'flow', value: {
+      ...transaction,
       id: transaction?.id ?? crypto.randomUUID(), kind: str('kind') === 'expense' ? 'expense' : 'income',
       day: str('day'), name: str('name'), amount: number('amount'),
     } });
@@ -148,6 +149,20 @@ function App() {
       {screen === '현금흐름' && <>
         <label className="month">조회 월 <input type="month" value={month} onChange={event => setMonth(event.target.value || monthNow())} /></label>
         <div className="metrics"><Stat label="수입" value={flow.income} /><Stat label="지출" value={flow.expense} /><Stat label="잔액" value={flow.net} tone="accent" /></div>
+        {flow.rows.length > 0 && <section className="panel"><h2>분류별 수입·지출</h2>
+          <div className="table-wrap"><table><thead><tr><th>구분</th><th>분류</th><th>합계</th></tr></thead>
+            <tbody>{(['income', 'expense'] as const).flatMap(kind => {
+              const categories = new Map<string, number>();
+              for (const row of flow.rows) {
+                if (row.kind !== kind) continue;
+                const category = row.category ?? '미분류';
+                categories.set(category, (categories.get(category) ?? 0) + row.amount);
+              }
+              return [...categories].sort((a, b) => b[1] - a[1]).map(([category, amount]) =>
+                <tr key={kind + category}><td>{kind === 'income' ? '수입' : '지출'}</td><td>{category}</td><td>{currency(amount)}</td></tr>);
+            })}</tbody>
+          </table></div>
+        </section>}
         <section className="panel"><h2>거래 내역</h2>
           {flow.rows.length === 0 ? <Empty text="이 달에 기록된 거래가 없습니다." /> : <div className="table-wrap"><table>
             <thead><tr><th>날짜</th><th>내용</th><th>구분</th><th>금액</th>{!shared && <th>관리</th>}</tr></thead>
