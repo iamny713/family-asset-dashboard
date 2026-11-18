@@ -61,8 +61,7 @@ dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
 .allocation{display:flex;height:22px;border-radius:7px;overflow:hidden;background:#edf3fc;margin:12px 0}
 .allocation span{height:100%}
 .portfolio-picks{display:grid;gap:5px;margin-bottom:12px}
-.portfolio-picks button{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;text-align:left;background:#f7f9fc;border-color:transparent;padding:10px 12px;font-weight:650}
-.portfolio-picks button[aria-pressed=true]{background:#edf4ff;border-color:#83a9ee}
+.portfolio-picks > div{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;text-align:left;background:#f7f9fc;border-radius:9px;padding:10px 12px;font-weight:650}
 .dot{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:7px}
 .visual-row{display:block;border-top:1px solid #e5edf8;padding:9px 0}
 .bar-track{height:7px;border-radius:4px;background:#eaf0fa;overflow:hidden;margin:4px 0}

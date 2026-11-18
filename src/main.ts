@@ -8,7 +8,6 @@ const currentMonth = monthNow();
 const monthInput = $<HTMLInputElement>('month');
 let ledger: Row[] = [];
 let snapshots: Snapshot[] = [];
-let selectedAsset = '';
 const requestedMonth = new URLSearchParams(window.location.search).get('month');
 monthInput.value = requestedMonth && /^\d{4}-(?:0[1-9]|1[0-2])$/.test(requestedMonth)
   ? requestedMonth
@@ -76,17 +75,13 @@ function grouped(id: string, rows: Row[], field: 'person' | 'category') {
 }
 function portfolio(balances: Row[], includeProperty: boolean) {
   const rows = balances.filter(row => includeProperty ? row.kind === 'valuation' : isFinancialAsset(row));
-  $('portfolio-debt-section').hidden = !includeProperty;
   const chart = $('allocation');
-  const detail = $('assets');
   chart.replaceChildren();
-  detail.replaceChildren();
   const categories = [['부동산','#173b79'], ['주식','#356cd2'], ['현금','#78a8f4'], ['적금','#087e75'], ['기타 자산','#8193ad']];
   const groups = categories.flatMap(([category, color]) => {
     const items = rows.filter(row => row.category === category);
     return items.length ? [{category, color, amount: sum(items)}] : [];
   });
-  if (!groups.some(group => group.category === selectedAsset)) selectedAsset = '';
   const total = groups.reduce((value,group) => value + group.amount,0);
   if (!total) { append(chart,'p','평가 기록 없음'); return; }
   const stack = append(chart,'div','');
@@ -99,31 +94,14 @@ function portfolio(balances: Row[], includeProperty: boolean) {
     const segment = append(stack,'span','');
     segment.style.width = ratio + '%';
     segment.style.backgroundColor = color;
-    const button = append(picks,'button','');
-    button.type = 'button';
-    button.dataset.category = category;
-    button.setAttribute('aria-pressed',String(selectedAsset === category));
-    const name = append(button,'span','');
+    const summary = append(picks,'div','');
+    const name = append(summary,'span','');
     const dot = append(name,'span','');
     dot.className = 'dot';
     dot.style.backgroundColor = color;
     append(name,'span',category);
-    append(button,'strong',ratio.toFixed(1) + '% · ' + won(amount));
+    append(summary,'strong',ratio.toFixed(1) + '% · ' + won(amount));
   }
-  function showDetails() {
-    detail.replaceChildren();
-    for (const button of picks.querySelectorAll('button')) button.setAttribute('aria-pressed',String(button.dataset.category === selectedAsset));
-    const items = selectedAsset ? rows.filter(row => row.category === selectedAsset) : rows;
-    for (const row of items) line(detail,row.title,won(row.amount));
-    if (!items.length) append(detail,'p','평가 기록 없음');
-  }
-  picks.addEventListener('click',event => {
-    const button = (event.target as HTMLElement).closest('button');
-    if (!button?.dataset.category) return;
-    selectedAsset = selectedAsset === button.dataset.category ? '' : button.dataset.category;
-    showDetails();
-  });
-  showDetails();
 }
 function flowChart(id: string, income: number, expense: number) {
   const node = $(id);
@@ -269,7 +247,6 @@ function render() {
   const debts = snapshot?.debts ?? sum(debtRows);
   renderDebtBalances($('monthly-debt-balances'), debtRows, snapshot, true);
   renderDebtBalances($('debt-balances'), debtRows, snapshot);
-  renderDebtBalances($('portfolio-debts'), debtRows, snapshot);
   $('totals').replaceChildren();
   const metrics = [
     ['총자산', displayedAssets, 'asset'],
