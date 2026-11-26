@@ -4,6 +4,12 @@ type PayrollKind = PayrollRow['kind'];
 const won = (amount: number) => amount.toLocaleString('ko-KR') + '원';
 const total = (rows: PayrollRow[]) => rows.reduce((sum, row) => sum + row.amount, 0);
 
+export function payrollAmounts(rows: PayrollRow[]) {
+  const paid = total(rows.filter(row => row.kind === '지급' || row.kind === '초과근무'));
+  const deductions = total(rows.filter(row => row.kind === '공제'));
+  return { paid, deductions, net: paid - deductions };
+}
+
 function add<K extends keyof HTMLElementTagNameMap>(parent: HTMLElement, tag: K, label = '') {
   const el = document.createElement(tag);
   el.textContent = label;
@@ -87,9 +93,8 @@ export function setupPayroll() {
     const rows = ledger.filter(row => row.month === selected);
     const dates = [...new Set(rows.map(row => row.day))].sort();
     add(details, 'p', '지급일 ' + dates.join(', '));
-    const paid = total(rows.filter(row => row.kind === '지급' || row.kind === '초과근무'));
-    const deductions = total(rows.filter(row => row.kind === '공제'));
-    add(details, 'p', `지급 ${won(paid)} · 공제 ${won(deductions)} · 실수령 ${won(paid - deductions)}`);
+    const { paid, deductions, net } = payrollAmounts(rows);
+    add(details, 'p', `지급 ${won(paid)} · 공제 ${won(deductions)} · 실수령 ${won(net)}`);
     const previous = new Date(selected + '-01T00:00:00Z');
     previous.setUTCMonth(previous.getUTCMonth() - 1);
     const priorRows = ledger.filter(row => row.month === previous.toISOString().slice(0, 7));

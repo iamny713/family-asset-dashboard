@@ -1,8 +1,8 @@
 import { monthNow, type History, type Snapshot } from './model';
-import { readPayroll, readSharedLedger } from './sheets';
+import { readPayroll, readSharedLedger, type PayrollRow } from './sheets';
 import { dashboardRows, type Row } from './dashboard-data';
 import './style.css';
-import { setupPayroll } from './payroll';
+import { payrollAmounts, setupPayroll } from './payroll';
 
 const updatePayroll = setupPayroll();
 
@@ -10,6 +10,7 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 const currentMonth = monthNow();
 const monthInput = $<HTMLInputElement>('month');
 let ledger: Row[] = [];
+let payrollRows: PayrollRow[] = [];
 let snapshots: Snapshot[] = [];
 let monthlyNotes: History[] = [];
 const requestedMonth = new URLSearchParams(window.location.search).get('month');
@@ -383,6 +384,19 @@ function renderPersonalIncome(month: string) {
     values[index] += row.amount;
     totals.set(row.month, values);
   }
+  const monthlyPayroll = new Map<string, PayrollRow[]>();
+  for (const row of payrollRows) {
+    if (row.month > month) continue;
+    const items = monthlyPayroll.get(row.month) ?? [];
+    items.push(row);
+    monthlyPayroll.set(row.month, items);
+  }
+  for (const [key, items] of monthlyPayroll) {
+    if (!items.some(row => row.kind === '지급' || row.kind === '초과근무')) continue;
+    const amounts = totals.get(key) ?? [0, 0, 0];
+    amounts[0] = payrollAmounts(items).net;
+    totals.set(key, amounts);
+  }
   const months = [...totals.keys()].sort();
   plotPersonalIncome(incomeChart, Array.from({ length: 6 }, (_, index) => {
     const key = offsetMonth(month, -index);
@@ -405,7 +419,7 @@ function renderPersonalIncome(month: string) {
       : year + '년',
     values,
   })));
-  if (annual.size) append(annualChart, 'small', '원장에 기록된 소득 합계');
+  if (annual.size) append(annualChart, 'small', '급여명세서 실수령액과 기타 소득 기록 합계');
   const breakdown = totals.get(month);
   if (breakdown) {
     line(incomeSummary, month + ' 소득 합계', won(totalIncome(breakdown)), true)
@@ -654,7 +668,9 @@ async function reload() {
   const payrollStatus = $('payroll-status');
   payrollStatus.textContent = '급여명세서를 불러오는 중…';
   const payroll = readPayroll(signal).then(rows => {
+    payrollRows = rows;
     updatePayroll(rows);
+    renderPersonalIncome(monthInput.value);
     payrollStatus.textContent = rows.length ? '' : '급여명세서 탭에 기록이 없습니다.';
   }).catch(error => {
     payrollStatus.textContent = error instanceof Error ? error.message : '급여명세서를 읽지 못했습니다.';
