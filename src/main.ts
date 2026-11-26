@@ -295,8 +295,13 @@ type IncomeAmounts = [number, number, number];
 const incomeCategories = ['급여', '보너스', '주식 보상·판매'] as const;
 const totalIncome = (values: IncomeAmounts) => values.reduce((total, value) => total + value, 0);
 
-function plotPersonalIncome(chart: HTMLElement, periods: { label: string; values: IncomeAmounts }[]) {
-  if (!periods.length) {
+function offsetMonth(month: string, offset: number) {
+  return new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)) - 1 + offset, 1))
+    .toISOString().slice(0, 7);
+}
+
+function plotPersonalIncome(chart: HTMLElement, periods: { label: string; values?: IncomeAmounts }[]) {
+  if (!periods.some(({ values }) => values)) {
     append(chart, 'p', '조회 월까지 유한의 소득 기록이 없습니다.');
     return;
   }
@@ -308,18 +313,23 @@ function plotPersonalIncome(chart: HTMLElement, periods: { label: string; values
     append(item, 'i', '').className = 'dot ' + colors[index];
     append(item, 'span', category);
   });
-  const max = Math.max(...periods.map(({values}) => totalIncome(values)));
+  const max = Math.max(1, ...periods.map(({ values }) => values ? totalIncome(values) : 0));
   const scroll = append(chart, 'div', '');
   scroll.className = 'cashflow-chart-scroll';
   const graph = append(scroll, 'div', '');
   graph.className = 'cashflow-chart';
   graph.style.gridTemplateColumns = 'repeat(' + periods.length + ', minmax(110px, 1fr))';
   for (const { label, values } of periods) {
-    const total = totalIncome(values);
     const group = append(graph, 'div', '');
     group.className = 'cashflow-trend-month';
     const columns = append(group, 'div', '');
     columns.className = 'cashflow-bars';
+    if (!values) {
+      append(columns, 'small', '기록 없음');
+      append(group, 'small', label);
+      continue;
+    }
+    const total = totalIncome(values);
     const stack = append(columns, 'div', '');
     stack.className = 'personal-income-stack';
     stack.style.height = total / max * 100 + '%';
@@ -360,7 +370,10 @@ function renderPersonalIncome(month: string) {
     totals.set(row.month, values);
   }
   const months = [...totals.keys()].sort();
-  plotPersonalIncome(incomeChart, months.slice(-12).map(key => ({label: key, values: totals.get(key)!})));
+  plotPersonalIncome(incomeChart, Array.from({ length: 6 }, (_, index) => {
+    const key = offsetMonth(month, -index);
+    return { label: key, values: totals.get(key) };
+  }));
   const annual = new Map<string, IncomeAmounts>();
   for (const key of months) {
     const year = key.slice(0, 4);
@@ -397,8 +410,7 @@ function renderPersonalIncome(month: string) {
   else append(chart, 'p', '조회 월까지 유한의 급여 기록이 없습니다.');
 
   const amount = totals.get(month)?.[0] || undefined;
-  const previousMonth = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 2, 1))
-    .toISOString().slice(0, 7);
+  const previousMonth = offsetMonth(month, -1);
   const previousAmount = totals.get(previousMonth)?.[0] || undefined;
   line(summary, month + ' 급여', amount === undefined ? '기록 없음' : won(amount), true)
     .className = 'asset-metric asset-metric-current';
