@@ -291,6 +291,37 @@ function renderCashflowTrend(month: string) {
   }
 }
 
+function renderSalaryTrend(month: string) {
+  const chart = $('salary-trend');
+  const summary = $('salary-summary');
+  chart.replaceChildren();
+  summary.replaceChildren();
+
+  const totals = new Map<string, number>();
+  for (const row of ledger) {
+    if (row.kind !== 'income' || row.category !== '급여' || row.person !== '유한' || row.month > month) continue;
+    totals.set(row.month, (totals.get(row.month) ?? 0) + row.amount);
+  }
+  const points = [...totals.keys()].sort().slice(-12).map(key => ({ month: key, amount: totals.get(key)! }));
+  if (points.length) plotTrend(chart, points);
+  else append(chart, 'p', '조회 월까지 유한의 급여 기록이 없습니다.');
+
+  const amount = totals.get(month);
+  const previousMonth = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 2, 1))
+    .toISOString().slice(0, 7);
+  const previousAmount = totals.get(previousMonth);
+  line(summary, month + ' 급여', amount === undefined ? '기록 없음' : won(amount), true)
+    .className = 'asset-metric asset-metric-current';
+  if (amount !== undefined && previousAmount !== undefined) {
+    const difference = amount - previousAmount;
+    line(summary, '전월 대비', (difference > 0 ? '+' : '') + won(difference), true).className = 'asset-metric';
+  }
+  if (points.length) {
+    const average = points.reduce((total, point) => total + point.amount, 0) / points.length;
+    line(summary, points.length + '개 기록 월 평균', won(Math.round(average)), true).className = 'asset-metric';
+  }
+}
+
 function renderMonthlyNotes(month: string) {
   for (const kind of ['income', 'expense']) {
     const target = month + ':' + kind;
@@ -338,6 +369,7 @@ function render() {
   flowChart('flow-chart',income,expense);
   flowChart('monthly-flow',income,expense);
   renderCashflowTrend(month);
+  renderSalaryTrend(month);
   renderTransactions(flow);
   $('changes').replaceChildren();
   const priorMonth = new Date(Date.UTC(Number(month.slice(0,4)),Number(month.slice(5,7))-2,1)).toISOString().slice(0,7);
