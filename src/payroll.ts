@@ -1,24 +1,5 @@
-type PayrollKind = '지급' | '초과근무' | '공제' | '기지급';
-export type PayrollRow = { month: string; day: string; kind: PayrollKind; name: string; amount: number };
-
-export function parsePayrollCsv(csv: string): PayrollRow[] {
-  const [header, ...lines] = csv.replace(/^\uFEFF/, '').trim().split(/\r?\n/);
-  const fields = (line: string) => [...line.matchAll(/(?:^|,)("(?:[^"]|"")*"|[^",]*)(?=,|$)/g)]
-    .map(([, value]) => value.startsWith('"') ? value.slice(1, -1).replaceAll('""', '"') : value);
-  if (fields(header).join(',') !== '월,지급일,구분,항목,금액') {
-    throw new Error('급여명세서 탭에서 내려받은 CSV를 선택해 주세요.');
-  }
-  return lines.filter(line => line.trim()).map((line, index) => {
-    const [month, day, kind, name, rawAmount, ...extra] = fields(line);
-    const amount = Number(rawAmount?.replaceAll(',', ''));
-    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || !/^\d{4}-\d{2}-\d{2}$/.test(day)
-      || !['지급', '초과근무', '공제', '기지급'].includes(kind) || !name || !rawAmount
-      || !/^-?[\d,]+$/.test(rawAmount) || !Number.isSafeInteger(amount) || extra.length) {
-      throw new Error(`급여명세서 CSV의 ${index + 2}행을 확인해 주세요.`);
-    }
-    return { month, day, kind: kind as PayrollKind, name, amount };
-  });
-}
+import type { PayrollRow } from './sheets';
+type PayrollKind = PayrollRow['kind'];
 
 const won = (amount: number) => amount.toLocaleString('ko-KR') + '원';
 const total = (rows: PayrollRow[]) => rows.reduce((sum, row) => sum + row.amount, 0);
@@ -31,8 +12,6 @@ function add<K extends keyof HTMLElementTagNameMap>(parent: HTMLElement, tag: K,
 }
 
 export function setupPayroll() {
-  const input = document.querySelector<HTMLInputElement>('#payroll-csv')!;
-  const status = document.querySelector('#payroll-status')!;
   const details = document.querySelector<HTMLElement>('#payroll-details')!;
   const charts = [
     { kind: '초과근무', root: document.querySelector<HTMLElement>('#payroll-overtime')! },
@@ -45,6 +24,7 @@ export function setupPayroll() {
     const months = [...new Set(ledger.map(row => row.month))].sort().reverse();
     for (const { kind, root } of charts) {
       root.replaceChildren();
+      if (!months.length) continue;
       const rows = ledger.filter(row => row.kind === kind);
       const names = [...new Set(rows.map(row => row.name))];
       const groups = months.map(month => {
@@ -130,22 +110,11 @@ export function setupPayroll() {
     }
   }
 
-  input.addEventListener('change', async () => {
-    const file = input.files?.[0];
-    if (!file) return;
-    input.disabled = true;
-    try {
-      const next = parsePayrollCsv(await file.text());
-      if (!next.length) throw new Error('급여명세서 CSV에 기록이 없습니다.');
-      ledger = next;
-      selected = ledger.map(row => row.month).sort().at(-1)!;
-      render();
-      status.textContent = `${new Set(ledger.map(row => row.month)).size}개월의 급여명세서를 불러왔습니다.`;
-    } catch (error) {
-      status.textContent = error instanceof Error ? error.message : '급여명세서를 읽지 못했습니다.';
-    } finally {
-      input.value = '';
-      input.disabled = false;
+  return (rows: PayrollRow[]) => {
+    ledger = rows;
+    if (!rows.some(row => row.month === selected)) {
+      selected = rows.map(row => row.month).sort().at(-1) ?? '';
     }
-  });
+    render();
+  };
 }

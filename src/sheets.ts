@@ -10,12 +10,23 @@ const columns = {
 } as const;
 const flowMetadata = ['category', 'person', 'account'] as const;
 type Tab = keyof typeof columns;
+const payrollColumns = ['월', '지급일', '구분', '항목', '금액'];
+const payrollKinds = ['지급', '초과근무', '공제', '기지급'] as const;
+export type PayrollRow = {
+  month: string;
+  day: string;
+  kind: typeof payrollKinds[number];
+  name: string;
+  amount: number;
+};
 type Cell = { v?: string | number | boolean | null; f?: string };
 type Response = { status?: string; table?: { cols: { label: string }[]; rows: { c: (Cell | null)[] }[] } };
 
-function query(tab: Tab, signal: AbortSignal) {
+function query(tab: Tab | '급여명세서', signal: AbortSignal) {
+  const width = tab === '급여명세서' ? payrollColumns.length
+    : columns[tab].length + (tab === '현금흐름' ? flowMetadata.length : tab === '자산부채' ? 1 : 0);
   const url = new URL(sheetUrl.replace(/\/edit$/, '/gviz/tq'));
-  url.search = new URLSearchParams({ sheet: tab, range: 'A:' + String.fromCharCode(64 + columns[tab].length + (tab === '현금흐름' ? flowMetadata.length : tab === '자산부채' ? 1 : 0)), headers: '1',
+  url.search = new URLSearchParams({ sheet: tab, range: 'A:' + String.fromCharCode(64 + width), headers: '1',
     tqx: 'out:json;responseHandler:receiveLedger' }).toString();
   return new Promise<Response>((resolve, reject) => {
     signal.throwIfAborted();
@@ -128,4 +139,27 @@ export async function readSharedLedger(signal: AbortSignal): Promise<Ledger> {
     (Object.keys(columns) as Tab[]).map(async tab => decodeRows(tab, await query(tab, signal))),
   );
   return { positions: positions.positions, flows: flows.flows, snapshots: snapshots.snapshots, history: history.history };
+}
+
+export function decodePayrollRows(response: Response): PayrollRow[] {
+  const table = response.table;
+  if (!table || payrollColumns.some((label, i) => table.cols[i]?.label.trim() !== label)) {
+    throw new Error('급여명세서 탭의 첫 행을 확인하세요.');
+  }
+  return table.rows.flatMap(({ c }, i) => {
+    if (c.every(cell => string(cell) === '')) return [];
+    const month = date(c[0]).slice(0, 7);
+    const paymentDay = date(c[1]);
+    const kind = payrollKinds.find(kind => kind === string(c[2]));
+    const name = string(c[3]);
+    const amount = number(c[4]);
+    if (!day(month + '-01') || !day(paymentDay) || !kind || !name || !Number.isSafeInteger(amount)) {
+      throw new Error('급여명세서 탭 ' + (i + 2) + '행의 값을 확인하세요.');
+    }
+    return [{ month, day: paymentDay, kind, name, amount }];
+  });
+}
+
+export async function readPayroll(signal: AbortSignal) {
+  return decodePayrollRows(await query('급여명세서', signal));
 }

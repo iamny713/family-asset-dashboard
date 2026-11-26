@@ -1,10 +1,10 @@
 import { monthNow, type History, type Snapshot } from './model';
-import { readSharedLedger } from './sheets';
+import { readPayroll, readSharedLedger } from './sheets';
 import { dashboardRows, type Row } from './dashboard-data';
 import './style.css';
 import { setupPayroll } from './payroll';
 
-setupPayroll();
+const updatePayroll = setupPayroll();
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const currentMonth = monthNow();
@@ -650,8 +650,17 @@ async function reload() {
   refresh.disabled = true;
   status.hidden = false;
   status.textContent = '공유 원장을 불러오는 중…';
+  const signal = new AbortController().signal;
+  const payrollStatus = $('payroll-status');
+  payrollStatus.textContent = '급여명세서를 불러오는 중…';
+  const payroll = readPayroll(signal).then(rows => {
+    updatePayroll(rows);
+    payrollStatus.textContent = rows.length ? '' : '급여명세서 탭에 기록이 없습니다.';
+  }).catch(error => {
+    payrollStatus.textContent = error instanceof Error ? error.message : '급여명세서를 읽지 못했습니다.';
+  });
   try {
-    const shared = await readSharedLedger(new AbortController().signal);
+    const shared = await readSharedLedger(signal);
     ledger = dashboardRows(shared, currentMonth);
     snapshots = shared.snapshots;
     monthlyNotes = shared.history.filter(entry => entry.action === 'monthly-note')
@@ -661,6 +670,7 @@ async function reload() {
   } catch (error) {
     status.textContent = error instanceof Error ? error.message : '공유 원장을 불러오지 못했습니다.';
   } finally {
+    await payroll;
     refresh.disabled = false;
   }
 }
