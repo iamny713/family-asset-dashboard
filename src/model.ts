@@ -74,3 +74,8 @@ export function applyCommand(ledger: Ledger, command: Command, actor: string, at
   next.history = [...ledger.history, history];
   return { next, history };
 }
+
+export function offsetMonth(month: string, offset: number) {
+  return new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)) - 1 + offset, 1))
+    .toISOString().slice(0, 7);
+}

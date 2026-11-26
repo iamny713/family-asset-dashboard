@@ -1,3 +1,4 @@
+import { offsetMonth } from './model';
 import type { PayrollRow } from './sheets';
 type PayrollKind = PayrollRow['kind'];
 
@@ -26,13 +27,18 @@ export function setupPayroll() {
   ] as const;
   let ledger: PayrollRow[] = [];
   let selected = '';
+  let months: string[] = [];
+  let available = new Set<string>();
 
   function render(focusKind?: PayrollKind) {
-    const months = [...new Set(ledger.map(row => row.month))].sort().reverse();
     for (const { kind, root } of charts) {
       root.replaceChildren();
-      if (!months.length) continue;
+      if (!months.some(month => available.has(month))) {
+        if (ledger.length) add(root, 'p', '조회 기간에 급여명세서가 없습니다.');
+        continue;
+      }
       const rows = ledger.flatMap(row => {
+        if (!months.includes(row.month)) return [];
         if (row.kind === kind) return [row];
         if (kind === '공제' && row.kind === '보너스 공제') return [{ ...row, name: '보너스 · ' + row.name }];
         return [];
@@ -70,7 +76,10 @@ export function setupPayroll() {
           render(kind);
           details.scrollIntoView({ block: 'nearest' });
         });
-        add(button, 'strong', won(total(group.rows)));
+        const hasStatement = available.has(group.month);
+        button.disabled = !hasStatement;
+        if (!hasStatement) button.setAttribute('aria-label', group.month + ' 기록 없음');
+        add(button, 'strong', hasStatement ? won(total(group.rows)) : '기록 없음');
         const plot = add(button, 'span');
         plot.className = 'payroll-plot';
         for (const sign of [1, -1]) {
@@ -114,9 +123,8 @@ export function setupPayroll() {
         add(card, 'dd', won(value));
       }
     }
-    const previous = new Date(selected + '-01T00:00:00Z');
-    previous.setUTCMonth(previous.getUTCMonth() - 1);
-    const priorRows = ledger.filter(row => row.month === previous.toISOString().slice(0, 7));
+    const previous = offsetMonth(selected, -1);
+    const priorRows = ledger.filter(row => row.month === previous);
     const breakdown = add(details, 'div');
     breakdown.className = 'payroll-breakdown';
     const labels = {
@@ -145,10 +153,13 @@ export function setupPayroll() {
     }
   }
 
-  return (rows: PayrollRow[]) => {
+  return (rows: PayrollRow[], month: string) => {
+    const changedMonth = months[0] !== month;
     ledger = rows;
-    if (!rows.some(row => row.month === selected)) {
-      selected = rows.map(row => row.month).sort().at(-1) ?? '';
+    months = Array.from({ length: 6 }, (_, index) => offsetMonth(month, -index));
+    available = new Set(rows.map(row => row.month));
+    if (changedMonth || !available.has(selected)) {
+      selected = months.find(key => available.has(key)) ?? '';
     }
     render();
   };

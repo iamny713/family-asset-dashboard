@@ -1,4 +1,4 @@
-import { monthNow, type History, type Snapshot } from './model';
+import { monthNow, offsetMonth, type History, type Snapshot } from './model';
 import { readPayroll, readSharedLedger, type PayrollRow } from './sheets';
 import { dashboardRows, type Row } from './dashboard-data';
 import './style.css';
@@ -299,11 +299,6 @@ type IncomeAmounts = [number, number, number];
 const incomeCategories = ['급여', '보너스', '주식 보상·판매'] as const;
 const totalIncome = (values: IncomeAmounts) => values.reduce((total, value) => total + value, 0);
 
-function offsetMonth(month: string, offset: number) {
-  return new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)) - 1 + offset, 1))
-    .toISOString().slice(0, 7);
-}
-
 function plotPersonalIncome(chart: HTMLElement, periods: { label: string; values?: IncomeAmounts; month?: string }[]) {
   if (!periods.some(({ values }) => values)) {
     append(chart, 'p', '조회 월까지 유한의 소득 기록이 없습니다.');
@@ -364,6 +359,7 @@ function plotPersonalIncome(chart: HTMLElement, periods: { label: string; values
 }
 
 function renderPersonalIncome(month: string) {
+  updatePayroll(payrollRows, month);
   const chart = $('salary-trend');
   const summary = $('salary-summary');
   chart.replaceChildren();
@@ -673,7 +669,6 @@ async function reload() {
   payrollStatus.textContent = '급여명세서를 불러오는 중…';
   const payroll = readPayroll(signal).then(rows => {
     payrollRows = rows;
-    updatePayroll(rows);
     renderPersonalIncome(monthInput.value);
     payrollStatus.textContent = rows.length ? '' : '급여명세서 탭에 기록이 없습니다.';
   }).catch(error => {
