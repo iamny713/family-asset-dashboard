@@ -210,6 +210,30 @@ button.personal-income-stack:is(:hover,:focus-visible,[aria-current]){outline:2p
 .payroll-plot>span{display:flex;width:32px;margin:auto}
 .payroll-positive{flex-direction:column-reverse;border-bottom:1px solid var(--line)}
 .payroll-negative{flex-direction:column}
-#payroll-details{border-top:1px solid var(--line);padding-top:12px}
-#payroll-details dl>div{display:flex;justify-content:space-between;gap:12px;padding:5px 0}
-#payroll-details dd{margin:0;white-space:nowrap;font-variant-numeric:tabular-nums}
+#payroll-details{border-top:1px solid var(--line);padding-top:20px}
+#payroll-details h3,#payroll-details h4{margin:0}
+.payroll-date{color:var(--muted);margin:6px 0 14px;font-size:13px}
+.payroll-summary,.payroll-breakdown{display:grid;gap:10px}
+.payroll-summary{grid-template-columns:1.2fr 1fr 1fr;margin:0 0 12px}
+.payroll-summary>div,.payroll-breakdown>section{border:1px solid var(--line);border-radius:12px;padding:12px;min-width:0}
+.payroll-summary>div{background:#f6f8fc}
+.payroll-summary [data-tone="net"]{background:#e9f2ff;color:#164a9d;border-color:#c7ddfa}
+.payroll-summary [data-tone="deduction"]{background:#fff3f5;border-color:#f4d6dc}
+.payroll-summary dt,.payroll-change{font-size:13px;font-weight:700}
+.payroll-summary dd{margin:5px 0 0;font-weight:750;font-size:clamp(14px,2.6vw,21px);overflow-wrap:anywhere}
+.payroll-breakdown{grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));margin-top:16px}
+.payroll-breakdown header,.payroll-breakdown dl>div{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.payroll-breakdown header{flex-wrap:wrap}
+.payroll-breakdown [data-tone="paid"] header{color:#164a9d}
+#payroll-details [data-tone="deduction"] :is(dd,header){color:#a12740}
+.payroll-breakdown [data-tone="reference"]{color:var(--muted);background:#f6f8fc}
+.payroll-change{display:inline-block;background:#f0f4fa;color:#344765;border-radius:7px;padding:4px 8px;margin:8px 0 0}
+.payroll-breakdown dl{margin:8px 0 0}
+.payroll-breakdown dl>div{border-top:1px solid var(--line);padding:7px 0;font-size:13px}
+.payroll-breakdown dd{margin:0;white-space:nowrap;font-weight:650}
+#payroll-details :is(dd,strong){font-variant-numeric:tabular-nums}
+@media(max-width:480px){
+  .payroll-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .payroll-summary [data-tone="net"]{grid-column:1/-1}
+  .payroll-summary [data-tone="net"] dd{font-size:23px}
+}

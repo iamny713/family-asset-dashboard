@@ -97,25 +97,46 @@ export function setupPayroll() {
     add(details, 'h3', selected + ' 급여명세서');
     const rows = ledger.filter(row => row.month === selected);
     const dates = [...new Set(rows.map(row => row.day))].sort();
-    add(details, 'p', '지급일 ' + dates.join(', '));
-    const { paid, deductions, net } = payrollAmounts(rows);
-    add(details, 'p', `지급 ${won(paid)} · 공제 ${won(deductions)} · 실수령 ${won(net)}`);
+    add(details, 'p', '지급일 ' + dates.join(', ')).className = 'payroll-date';
+    const summaries = [{ label: '정기급여', ...payrollAmounts(rows) }];
     if (rows.some(row => row.kind === '보너스')) {
-      const bonus = payrollAmounts(rows, true);
-      add(details, 'p', `보너스 지급 ${won(bonus.paid)} · 공제 ${won(bonus.deductions)} · 실수령 ${won(bonus.net)}`);
+      summaries.push({ label: '보너스', ...payrollAmounts(rows, true) });
+    }
+    for (const { label, net, paid, deductions } of summaries) {
+      const summary = add(details, 'dl');
+      summary.className = 'payroll-summary';
+      for (const [name, value, tone] of [
+        [label + ' 실수령액', net, 'net'], ['지급 총액', paid, 'paid'], ['공제 총액', deductions, 'deduction'],
+      ] as const) {
+        const card = add(summary, 'div');
+        card.dataset.tone = tone;
+        add(card, 'dt', name);
+        add(card, 'dd', won(value));
+      }
     }
     const previous = new Date(selected + '-01T00:00:00Z');
     previous.setUTCMonth(previous.getUTCMonth() - 1);
     const priorRows = ledger.filter(row => row.month === previous.toISOString().slice(0, 7));
+    const breakdown = add(details, 'div');
+    breakdown.className = 'payroll-breakdown';
+    const labels = {
+      초과근무: '초과근무수당', 공제: '정기급여 공제', 지급: '기타 지급 항목',
+      보너스: '보너스 지급', '보너스 공제': '보너스 공제', 기지급: '기지급 참고',
+    } as const;
     for (const kind of ['초과근무', '공제', '지급', '보너스', '보너스 공제', '기지급'] as const) {
       const items = rows.filter(row => row.kind === kind);
       if (!items.length) continue;
-      add(details, 'h4', kind + (kind === '기지급' ? ' · 참고' : ''));
+      const section = add(breakdown, 'section');
+      section.dataset.tone = kind.includes('공제') ? 'deduction' : kind === '기지급' ? 'reference' : 'paid';
+      const heading = add(section, 'header');
+      add(heading, 'h4', labels[kind]);
+      add(heading, 'strong', won(total(items)));
       if (priorRows.length && (kind === '초과근무' || kind === '공제')) {
         const diff = total(items) - total(priorRows.filter(row => row.kind === kind));
-        add(details, 'p', '전월 대비 ' + (diff > 0 ? '+' : '') + won(diff));
+        const change = diff === 0 ? '변동 없음' : (diff > 0 ? '+' : '−') + won(Math.abs(diff));
+        add(section, 'p', '전월 대비 ' + change).className = 'payroll-change';
       }
-      const list = add(details, 'dl');
+      const list = add(section, 'dl');
       for (const item of items) {
         const pair = add(list, 'div');
         add(pair, 'dt', item.name);
