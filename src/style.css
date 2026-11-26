@@ -194,3 +194,8 @@ select{font:inherit;color:#122744;background:#fff;border:1px solid #c5d6ee;paddi
 .asset-metrics .asset-metric-current{background:var(--blue-soft);color:var(--blue)}
 .asset-metrics .asset-metric-purchase{background:#fff8ed;color:#785121}
 .asset-metric-purchase dt::before{content:"";display:inline-block;width:20px;margin-right:7px;vertical-align:middle;border-top:2px dashed #9b6d33}
+
+.personal-income-stack{position:relative;display:flex;flex-direction:column-reverse;width:clamp(30px,6vw,48px)}
+.personal-income-stack > div:last-of-type{border-radius:5px 5px 0 0}
+.personal-bonus{background:#087e75}
+.personal-stock{background:#8054b3}
