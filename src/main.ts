@@ -291,25 +291,54 @@ function renderCashflowTrend(month: string) {
   }
 }
 
-function renderSalaryTrend(month: string) {
+function renderPersonalIncome(month: string) {
   const chart = $('salary-trend');
   const summary = $('salary-summary');
   chart.replaceChildren();
   summary.replaceChildren();
 
-  const totals = new Map<string, number>();
+  const incomeChart = $('personal-income-trend');
+  const incomeSummary = $('personal-income-summary');
+  incomeChart.replaceChildren();
+  incomeSummary.replaceChildren();
+  const categories = ['급여', '보너스', '주식 보상·판매'] as const;
+  const totals = new Map<string, [number, number, number]>();
   for (const row of ledger) {
-    if (row.kind !== 'income' || row.category !== '급여' || row.person !== '유한' || row.month > month) continue;
-    totals.set(row.month, (totals.get(row.month) ?? 0) + row.amount);
+    if (row.kind !== 'income' || row.person !== '유한' || row.month > month) continue;
+    const stockCompensation = row.category === '주식 보너스 판매' ||
+      (row.category === '보너스' && /주식|RSU/i.test(row.title));
+    const index = stockCompensation ? 2 : categories.findIndex(category => category === row.category);
+    if (index < 0) continue;
+    const values = totals.get(row.month) ?? [0, 0, 0];
+    values[index] += row.amount;
+    totals.set(row.month, values);
   }
-  const points = [...totals.keys()].sort().slice(-12).map(key => ({ month: key, amount: totals.get(key)! }));
+  const totalIncome = (values: number[]) => values.reduce((total, value) => total + value, 0);
+  const incomePoints = [...totals.keys()].sort().slice(-12)
+    .map(key => ({ month: key, amount: totalIncome(totals.get(key)!) }));
+  if (incomePoints.length) plotTrend(incomeChart, incomePoints);
+  else append(incomeChart, 'p', '조회 월까지 유한의 소득 기록이 없습니다.');
+  const breakdown = totals.get(month);
+  if (breakdown) {
+    line(incomeSummary, month + ' 소득 합계', won(totalIncome(breakdown)), true)
+      .className = 'asset-metric asset-metric-current';
+    categories.forEach((category, index) => {
+      line(incomeSummary, category, won(breakdown[index]), true).className = 'asset-metric';
+    });
+  } else {
+    append(incomeChart, 'small', month + ' 소득 기록이 없습니다.');
+  }
+
+  const points = [...totals.entries()].filter(([, values]) => values[0] > 0)
+    .sort(([a], [b]) => a.localeCompare(b)).slice(-12)
+    .map(([key, values]) => ({ month: key, amount: values[0] }));
   if (points.length) plotTrend(chart, points);
   else append(chart, 'p', '조회 월까지 유한의 급여 기록이 없습니다.');
 
-  const amount = totals.get(month);
+  const amount = totals.get(month)?.[0] || undefined;
   const previousMonth = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 2, 1))
     .toISOString().slice(0, 7);
-  const previousAmount = totals.get(previousMonth);
+  const previousAmount = totals.get(previousMonth)?.[0] || undefined;
   line(summary, month + ' 급여', amount === undefined ? '기록 없음' : won(amount), true)
     .className = 'asset-metric asset-metric-current';
   if (amount !== undefined && previousAmount !== undefined) {
@@ -369,7 +398,7 @@ function render() {
   flowChart('flow-chart',income,expense);
   flowChart('monthly-flow',income,expense);
   renderCashflowTrend(month);
-  renderSalaryTrend(month);
+  renderPersonalIncome(month);
   renderTransactions(flow);
   $('changes').replaceChildren();
   const priorMonth = new Date(Date.UTC(Number(month.slice(0,4)),Number(month.slice(5,7))-2,1)).toISOString().slice(0,7);
