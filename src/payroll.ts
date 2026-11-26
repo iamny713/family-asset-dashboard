@@ -133,22 +133,34 @@ export function setupPayroll() {
     } as const;
     for (const kind of ['초과근무', '공제', '지급', '보너스', '보너스 공제', '기지급'] as const) {
       const items = rows.filter(row => row.kind === kind);
-      if (!items.length) continue;
+      const priorItems = priorRows.filter(row => row.kind === kind);
+      if (!items.length && !priorItems.length) continue;
       const section = add(breakdown, 'section');
       section.dataset.tone = kind.includes('공제') ? 'deduction' : kind === '기지급' ? 'reference' : 'paid';
       const heading = add(section, 'header');
       add(heading, 'h4', labels[kind]);
       add(heading, 'strong', won(total(items)));
       if (priorRows.length && (kind === '초과근무' || kind === '공제')) {
-        const diff = total(items) - total(priorRows.filter(row => row.kind === kind));
+        const diff = total(items) - total(priorItems);
         const change = diff === 0 ? '변동 없음' : (diff > 0 ? '+' : '−') + won(Math.abs(diff));
         add(section, 'p', '전월 대비 ' + change).className = 'payroll-change';
       }
       const list = add(section, 'dl');
-      for (const item of items) {
+      const names = new Set([...items, ...priorItems].map(item => item.name));
+      for (const name of names) {
+        const amount = total(items.filter(item => item.name === name));
         const pair = add(list, 'div');
-        add(pair, 'dt', item.name);
-        add(pair, 'dd', won(item.amount));
+        add(pair, 'dt', name);
+        const value = add(pair, 'dd');
+        add(value, 'span', won(amount));
+        if (priorRows.length) {
+          const difference = amount - total(priorItems.filter(item => item.name === name));
+          const change = difference === 0 ? '변동 없음' : (difference > 0 ? '+' : '−') + won(Math.abs(difference));
+          const badge = add(value, 'span', change);
+          badge.className = 'payroll-item-change';
+          badge.dataset.direction = difference > 0 ? 'up' : difference < 0 ? 'down' : 'flat';
+          badge.title = '전월 대비 ' + change;
+        }
       }
     }
   }
