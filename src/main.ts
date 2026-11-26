@@ -300,7 +300,7 @@ function offsetMonth(month: string, offset: number) {
     .toISOString().slice(0, 7);
 }
 
-function plotPersonalIncome(chart: HTMLElement, periods: { label: string; values?: IncomeAmounts }[]) {
+function plotPersonalIncome(chart: HTMLElement, periods: { label: string; values?: IncomeAmounts; month?: string }[]) {
   if (!periods.some(({ values }) => values)) {
     append(chart, 'p', '조회 월까지 유한의 소득 기록이 없습니다.');
     return;
@@ -319,7 +319,7 @@ function plotPersonalIncome(chart: HTMLElement, periods: { label: string; values
   const graph = append(scroll, 'div', '');
   graph.className = 'cashflow-chart';
   graph.style.gridTemplateColumns = 'repeat(' + periods.length + ', minmax(110px, 1fr))';
-  for (const { label, values } of periods) {
+  for (const { label, values, month } of periods) {
     const group = append(graph, 'div', '');
     group.className = 'cashflow-trend-month';
     const columns = append(group, 'div', '');
@@ -330,16 +330,27 @@ function plotPersonalIncome(chart: HTMLElement, periods: { label: string; values
       continue;
     }
     const total = totalIncome(values);
-    const stack = append(columns, 'div', '');
+    const stack = month ? append(columns, 'button', '') : append(columns, 'div', '');
     stack.className = 'personal-income-stack';
     stack.style.height = total / max * 100 + '%';
-    stack.setAttribute('role', 'img');
+    if (stack instanceof HTMLButtonElement && month) {
+      stack.type = 'button';
+      if (month === monthInput.value) stack.setAttribute('aria-current', 'date');
+      stack.addEventListener('click', () => {
+        if (monthInput.value === month) return;
+        monthInput.value = month;
+        monthInput.dispatchEvent(new Event('change'));
+        chart.querySelector<HTMLButtonElement>('button[aria-current="date"]')?.focus();
+      });
+    } else {
+      stack.setAttribute('role', 'img');
+    }
     stack.setAttribute('aria-label', label + ' 소득 합계 ' + won(total) + ' · ' +
       incomeCategories.map((category, index) => category + ' ' + won(values[index])).join(' · '));
     incomeCategories.forEach((category, index) => {
       if (!values[index]) return;
-      const segment = append(stack, 'div', '');
-      segment.className = colors[index];
+      const segment = append(stack, 'span', '');
+      segment.className = 'personal-income-segment ' + colors[index];
       segment.style.height = values[index] / total * 100 + '%';
       segment.title = category + ' ' + won(values[index]);
     });
@@ -372,7 +383,7 @@ function renderPersonalIncome(month: string) {
   const months = [...totals.keys()].sort();
   plotPersonalIncome(incomeChart, Array.from({ length: 6 }, (_, index) => {
     const key = offsetMonth(month, -index);
-    return { label: key, values: totals.get(key) };
+    return { label: key, values: totals.get(key), month: key };
   }));
   const annual = new Map<string, IncomeAmounts>();
   for (const key of months) {
