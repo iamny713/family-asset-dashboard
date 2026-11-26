@@ -291,6 +291,53 @@ function renderCashflowTrend(month: string) {
   }
 }
 
+type IncomeAmounts = [number, number, number];
+const incomeCategories = ['급여', '보너스', '주식 보상·판매'] as const;
+const totalIncome = (values: IncomeAmounts) => values.reduce((total, value) => total + value, 0);
+
+function plotPersonalIncome(chart: HTMLElement, periods: { label: string; values: IncomeAmounts }[]) {
+  if (!periods.length) {
+    append(chart, 'p', '조회 월까지 유한의 소득 기록이 없습니다.');
+    return;
+  }
+  const colors = ['income', 'personal-bonus', 'personal-stock'];
+  const legend = append(chart, 'div', '');
+  legend.className = 'legend';
+  incomeCategories.forEach((category, index) => {
+    const item = append(legend, 'span', '');
+    append(item, 'i', '').className = 'dot ' + colors[index];
+    append(item, 'span', category);
+  });
+  const max = Math.max(...periods.map(({values}) => totalIncome(values)));
+  const scroll = append(chart, 'div', '');
+  scroll.className = 'cashflow-chart-scroll';
+  const graph = append(scroll, 'div', '');
+  graph.className = 'cashflow-chart';
+  graph.style.gridTemplateColumns = 'repeat(' + periods.length + ', minmax(110px, 1fr))';
+  for (const { label, values } of periods) {
+    const total = totalIncome(values);
+    const group = append(graph, 'div', '');
+    group.className = 'cashflow-trend-month';
+    const columns = append(group, 'div', '');
+    columns.className = 'cashflow-bars';
+    const stack = append(columns, 'div', '');
+    stack.className = 'personal-income-stack';
+    stack.style.height = total / max * 100 + '%';
+    stack.setAttribute('role', 'img');
+    stack.setAttribute('aria-label', label + ' 소득 합계 ' + won(total) + ' · ' +
+      incomeCategories.map((category, index) => category + ' ' + won(values[index])).join(' · '));
+    incomeCategories.forEach((category, index) => {
+      if (!values[index]) return;
+      const segment = append(stack, 'div', '');
+      segment.className = colors[index];
+      segment.style.height = values[index] / total * 100 + '%';
+      segment.title = category + ' ' + won(values[index]);
+    });
+    append(stack, 'span', won(total)).className = 'cashflow-column-amount';
+    append(group, 'small', label);
+  }
+}
+
 function renderPersonalIncome(month: string) {
   const chart = $('salary-trend');
   const summary = $('salary-summary');
@@ -301,66 +348,42 @@ function renderPersonalIncome(month: string) {
   const incomeSummary = $('personal-income-summary');
   incomeChart.replaceChildren();
   incomeSummary.replaceChildren();
-  const categories = ['급여', '보너스', '주식 보상·판매'] as const;
-  const totals = new Map<string, [number, number, number]>();
+  const totals = new Map<string, IncomeAmounts>();
   for (const row of ledger) {
     if (row.kind !== 'income' || row.person !== '유한' || row.month > month) continue;
     const stockCompensation = row.category === '주식 보너스 판매' ||
       (row.category === '보너스' && /주식|RSU/i.test(row.title));
-    const index = stockCompensation ? 2 : categories.findIndex(category => category === row.category);
+    const index = stockCompensation ? 2 : incomeCategories.findIndex(category => category === row.category);
     if (index < 0) continue;
     const values = totals.get(row.month) ?? [0, 0, 0];
     values[index] += row.amount;
     totals.set(row.month, values);
   }
-  const totalIncome = (values: number[]) => values.reduce((total, value) => total + value, 0);
-  const months = [...totals.keys()].sort().slice(-12);
-  if (months.length) {
-    const colors = ['income', 'personal-bonus', 'personal-stock'];
-    const legend = append(incomeChart, 'div', '');
-    legend.className = 'legend';
-    categories.forEach((category, index) => {
-      const item = append(legend, 'span', '');
-      append(item, 'i', '').className = 'dot ' + colors[index];
-      append(item, 'span', category);
-    });
-    const max = Math.max(...months.map(key => totalIncome(totals.get(key)!)));
-    const scroll = append(incomeChart, 'div', '');
-    scroll.className = 'cashflow-chart-scroll';
-    const graph = append(scroll, 'div', '');
-    graph.className = 'cashflow-chart';
-    graph.style.gridTemplateColumns = 'repeat(' + months.length + ', minmax(110px, 1fr))';
-    for (const key of months) {
-      const values = totals.get(key)!;
-      const total = totalIncome(values);
-      const group = append(graph, 'div', '');
-      group.className = 'cashflow-trend-month';
-      const columns = append(group, 'div', '');
-      columns.className = 'cashflow-bars';
-      const stack = append(columns, 'div', '');
-      stack.className = 'personal-income-stack';
-      stack.style.height = total / max * 100 + '%';
-      stack.setAttribute('role', 'img');
-      stack.setAttribute('aria-label', key + ' 소득 합계 ' + won(total) + ' · ' +
-        categories.map((category, index) => category + ' ' + won(values[index])).join(' · '));
-      categories.forEach((category, index) => {
-        if (!values[index]) return;
-        const segment = append(stack, 'div', '');
-        segment.className = colors[index];
-        segment.style.height = values[index] / total * 100 + '%';
-        segment.title = category + ' ' + won(values[index]);
-      });
-      append(stack, 'span', won(total)).className = 'cashflow-column-amount';
-      append(group, 'small', key);
-    }
-  } else {
-    append(incomeChart, 'p', '조회 월까지 유한의 소득 기록이 없습니다.');
+  const months = [...totals.keys()].sort();
+  plotPersonalIncome(incomeChart, months.slice(-12).map(key => ({label: key, values: totals.get(key)!})));
+  const annual = new Map<string, IncomeAmounts>();
+  for (const key of months) {
+    const year = key.slice(0, 4);
+    const values = totals.get(key)!;
+    const amounts = annual.get(year) ?? [0, 0, 0];
+    values.forEach((amount, index) => { amounts[index] += amount; });
+    annual.set(year, amounts);
   }
+  const annualChart = $('personal-income-annual');
+  annualChart.replaceChildren();
+  const selectedYear = month.slice(0, 4);
+  plotPersonalIncome(annualChart, [...annual].map(([year, values]) => ({
+    label: year === selectedYear && !month.endsWith('-12')
+      ? year + '년 ' + Number(month.slice(5)) + '월까지'
+      : year + '년',
+    values,
+  })));
+  if (annual.size) append(annualChart, 'small', '원장에 기록된 소득 합계');
   const breakdown = totals.get(month);
   if (breakdown) {
     line(incomeSummary, month + ' 소득 합계', won(totalIncome(breakdown)), true)
       .className = 'asset-metric asset-metric-current';
-    categories.forEach((category, index) => {
+    incomeCategories.forEach((category, index) => {
       line(incomeSummary, category, won(breakdown[index]), true).className = 'asset-metric';
     });
   } else {
