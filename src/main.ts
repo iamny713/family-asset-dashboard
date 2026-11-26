@@ -2,6 +2,9 @@ import { monthNow, type History, type Snapshot } from './model';
 import { readSharedLedger } from './sheets';
 import { dashboardRows, type Row } from './dashboard-data';
 import './style.css';
+import { setupPayroll } from './payroll';
+
+setupPayroll();
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const currentMonth = monthNow();

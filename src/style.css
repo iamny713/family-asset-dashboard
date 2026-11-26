@@ -201,3 +201,15 @@ button.personal-income-stack{border:0;border-radius:5px 5px 0 0;background:trans
 button.personal-income-stack:is(:hover,:focus-visible,[aria-current]){outline:2px solid var(--blue);outline-offset:2px}
 .personal-bonus{background:#087e75}
 .personal-stock{background:#8054b3}
+
+.payroll-chart-scroll{overflow-x:auto;margin:8px 0 20px}
+.payroll-chart{display:grid;min-width:max-content;gap:6px;padding:3px}
+.payroll-chart button{display:grid;gap:6px;padding:7px 4px;font-size:13px}
+.payroll-chart button[aria-pressed="true"]{border-color:var(--blue);background:var(--blue-soft)}
+.payroll-plot{display:block;height:120px}
+.payroll-plot>span{display:flex;width:32px;margin:auto}
+.payroll-positive{flex-direction:column-reverse;border-bottom:1px solid var(--line)}
+.payroll-negative{flex-direction:column}
+#payroll-details{border-top:1px solid var(--line);padding-top:12px}
+#payroll-details dl>div{display:flex;justify-content:space-between;gap:12px;padding:5px 0}
+#payroll-details dd{margin:0;white-space:nowrap;font-variant-numeric:tabular-nums}

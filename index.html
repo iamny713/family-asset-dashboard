@@ -31,6 +31,13 @@
 </div>
 <div id="salary" hidden>
 <section class="panel"><h2>유한 월별 소득 추이 · 6개월</h2><div id="personal-income-trend"></div><dl id="personal-income-summary" class="asset-metrics"></dl></section>
+<section class="panel"><h2>급여명세서</h2>
+<label for="payroll-csv">원장 CSV 불러오기</label> <input id="payroll-csv" type="file" accept=".csv,text/csv">
+<p id="payroll-status" role="status">급여명세서 탭의 CSV를 선택하면 이 화면에 표시됩니다. 파일은 브라우저에서만 읽습니다.</p>
+<h3>월별 초과근무수당</h3><div id="payroll-overtime"></div>
+<h3>월별 공제액</h3><div id="payroll-deductions"></div>
+<section id="payroll-details" hidden aria-live="polite"></section>
+</section>
 <section class="panel"><h2>유한 연간 소득</h2><div id="personal-income-annual"></div></section>
 <section class="panel"><h2>유한 월별 급여 추이</h2><div id="salary-trend"></div><dl id="salary-summary" class="asset-metrics"></dl></section>
 </div>
