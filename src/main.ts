@@ -336,9 +336,7 @@ function plotPersonalIncome(chart: HTMLElement, periods: { label: string; values
       stack.type = 'button';
       if (month === monthInput.value) stack.setAttribute('aria-current', 'date');
       stack.addEventListener('click', () => {
-        if (monthInput.value === month) return;
-        monthInput.value = month;
-        monthInput.dispatchEvent(new Event('change'));
+        selectMonth(month);
         chart.querySelector<HTMLButtonElement>('button[aria-current="date"]')?.focus();
       });
     } else {
@@ -653,6 +651,15 @@ for (const button of menu) button.addEventListener('click',() => {
 root.querySelector('h1')!.textContent = '대시보드';
 const includePropertySwitch = $<HTMLInputElement>('portfolio-include-property');
 includePropertySwitch.addEventListener('change', render);
+function selectMonth(month: string) {
+  if (monthInput.value === month) return;
+  monthInput.value = month;
+  monthInput.dispatchEvent(new Event('change'));
+}
+
+$('previous-month').addEventListener('click', () => selectMonth(offsetMonth(monthInput.value, -1)));
+$('next-month').addEventListener('click', () => selectMonth(offsetMonth(monthInput.value, 1)));
+$('current-month').addEventListener('click', () => selectMonth(currentMonth));
 monthInput.addEventListener('change',() => {
   if (!monthInput.value) monthInput.value = currentMonth;
   render();

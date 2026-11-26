@@ -13,7 +13,14 @@
 <button type="button" data-view="holdings">자산별</button>
 <button type="button" data-view="debts">부채 관리</button>
 </nav>
-<div class="row filters"><div><h1>대시보드</h1><small>공유 원장 · 조회 전용</small></div><label>조회 월 <input id="month" type="month"></label></div>
+<div class="month-navigation" role="group" aria-label="기준 월 이동">
+<label for="month">기준 월</label>
+<button id="previous-month" type="button" aria-label="이전 달" title="이전 달"><span aria-hidden="true">‹</span></button>
+<input id="month" type="month">
+<button id="next-month" type="button" aria-label="다음 달" title="다음 달"><span aria-hidden="true">›</span></button>
+<button id="current-month" type="button">이번 달</button>
+</div>
+<div class="row filters"><div><h1>대시보드</h1><small>공유 원장 · 조회 전용</small></div></div>
 <div id="overview">
 <section class="metrics" id="totals" aria-label="월별 요약"></section>
 <section class="panel"><div class="row asset-scope"><h2 id="total-asset-title">월별 총자산 추이</h2><label class="asset-switch"><input id="portfolio-include-property" type="checkbox" role="switch" aria-controls="totals total-asset-trend allocation" checked><span class="asset-switch-track" aria-hidden="true"></span>부동산 포함</label></div><div id="total-asset-trend"></div><dl id="total-asset-context"></dl></section>
