@@ -11,7 +11,7 @@ const columns = {
 const flowMetadata = ['category', 'person', 'account'] as const;
 type Tab = keyof typeof columns;
 const payrollColumns = ['월', '지급일', '구분', '항목', '금액'];
-const payrollKinds = ['지급', '초과근무', '공제', '기지급'] as const;
+const payrollKinds = ['지급', '초과근무', '공제', '기지급', '보너스', '보너스 공제'] as const;
 export type PayrollRow = {
   month: string;
   day: string;

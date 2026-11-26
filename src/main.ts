@@ -392,9 +392,13 @@ function renderPersonalIncome(month: string) {
     monthlyPayroll.set(row.month, items);
   }
   for (const [key, items] of monthlyPayroll) {
-    if (!items.some(row => row.kind === '지급' || row.kind === '초과근무')) continue;
     const amounts = totals.get(key) ?? [0, 0, 0];
-    amounts[0] = payrollAmounts(items).net;
+    if (items.some(row => row.kind === '지급' || row.kind === '초과근무')) {
+      amounts[0] = payrollAmounts(items).net;
+    }
+    if (items.some(row => row.kind === '보너스')) {
+      amounts[1] = payrollAmounts(items, true).net;
+    }
     totals.set(key, amounts);
   }
   const months = [...totals.keys()].sort();

@@ -4,9 +4,10 @@ type PayrollKind = PayrollRow['kind'];
 const won = (amount: number) => amount.toLocaleString('ko-KR') + '원';
 const total = (rows: PayrollRow[]) => rows.reduce((sum, row) => sum + row.amount, 0);
 
-export function payrollAmounts(rows: PayrollRow[]) {
-  const paid = total(rows.filter(row => row.kind === '지급' || row.kind === '초과근무'));
-  const deductions = total(rows.filter(row => row.kind === '공제'));
+export function payrollAmounts(rows: PayrollRow[], bonus = false) {
+  const paid = total(rows.filter(row => bonus ? row.kind === '보너스'
+    : row.kind === '지급' || row.kind === '초과근무'));
+  const deductions = total(rows.filter(row => row.kind === (bonus ? '보너스 공제' : '공제')));
   return { paid, deductions, net: paid - deductions };
 }
 
@@ -31,7 +32,11 @@ export function setupPayroll() {
     for (const { kind, root } of charts) {
       root.replaceChildren();
       if (!months.length) continue;
-      const rows = ledger.filter(row => row.kind === kind);
+      const rows = ledger.flatMap(row => {
+        if (row.kind === kind) return [row];
+        if (kind === '공제' && row.kind === '보너스 공제') return [{ ...row, name: '보너스 · ' + row.name }];
+        return [];
+      });
       const names = [...new Set(rows.map(row => row.name))];
       const groups = months.map(month => {
         const byName = names.map(name => total(rows.filter(row => row.month === month && row.name === name)));
@@ -95,10 +100,14 @@ export function setupPayroll() {
     add(details, 'p', '지급일 ' + dates.join(', '));
     const { paid, deductions, net } = payrollAmounts(rows);
     add(details, 'p', `지급 ${won(paid)} · 공제 ${won(deductions)} · 실수령 ${won(net)}`);
+    if (rows.some(row => row.kind === '보너스')) {
+      const bonus = payrollAmounts(rows, true);
+      add(details, 'p', `보너스 지급 ${won(bonus.paid)} · 공제 ${won(bonus.deductions)} · 실수령 ${won(bonus.net)}`);
+    }
     const previous = new Date(selected + '-01T00:00:00Z');
     previous.setUTCMonth(previous.getUTCMonth() - 1);
     const priorRows = ledger.filter(row => row.month === previous.toISOString().slice(0, 7));
-    for (const kind of ['초과근무', '공제', '지급', '기지급'] as const) {
+    for (const kind of ['초과근무', '공제', '지급', '보너스', '보너스 공제', '기지급'] as const) {
       const items = rows.filter(row => row.kind === kind);
       if (!items.length) continue;
       add(details, 'h4', kind + (kind === '기지급' ? ' · 참고' : ''));
