@@ -240,7 +240,7 @@ function renderCashflowTrend(month: string) {
     values[row.kind] += row.amount;
     totals.set(row.month, values);
   }
-  const months = [...totals.keys()].sort().slice(-12);
+  const months = [...totals.keys()].sort((a, b) => b.localeCompare(a)).slice(0, 12);
   if (!months.length) {
     append(chart, 'p', '조회 월까지 수입·지출 기록이 없습니다.');
     return;
